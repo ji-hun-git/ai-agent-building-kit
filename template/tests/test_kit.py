@@ -321,7 +321,7 @@ class TestEdges(unittest.TestCase):
 
     def test_writes_run_once_across_a_restart(self):
         ledger = {}  # stands in for a database table or shelve.open(path)
-        for attempt in range(2):  # two processes: the second resumes the same session
+        for _ in range(2):  # two processes: the second resumes the same session
             agent = self.approvals_agent([Reply(calls=[Call("1", "pay", {"n": 5})]), Reply("ok")])
             session = agent.start(ALICE, session_id="s-42", ledger=ledger)
             out = agent.run(session, ALICE, "pay 5")
