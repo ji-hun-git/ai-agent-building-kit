@@ -2,8 +2,7 @@
 
 <p align="center">
   <b>Why AI agents fail in production, and how to build ones that hold up.</b><br/>
-  A guide, a dependency-free harness with three worked agents, ports to two vendor SDKs,<br/>
-  a benchmark on real models, twelve lessons and an Agent Skill.
+  A guide, a dependency-free harness with three worked agents, ports to two vendor SDKs, a benchmark on real models, twelve lessons and an Agent Skill.
 </p>
 
 <p align="center">

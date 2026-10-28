@@ -382,48 +382,44 @@ def benchmark() -> Canvas:
     trials = sum(c["trials"] for r in guarded for c in r["cases"])
     unsafe = sum(c["unsafe"] for r in guarded for c in r["cases"])
     k = max(r["k"] for r in results)
-    x0, x1, top, step = 430, 900, 168, 62
-    rows_h = step * len(results) + (46 if len(guarded) < len(results) else 0)
-    c = Canvas(1400, top + rows_h + 120)
-    title = (f"No unsafe outcome in {trials:,} trials with the guard on" if not unsafe
-             else f"{unsafe} unsafe outcomes in {trials:,} trials with the guard on")
+    # Narrow on purpose: GitHub shows a README image about 880 px wide, so this renders near full size.
+    w_, right, x0, x1, top, step = 1120, 1080, 300, 640, 176, 66
+    rows_h = step * len(results) + (50 if off else 0)
+    c = Canvas(w_, top + rows_h + 120)
+    title = f"Guard on: {unsafe} unsafe outcomes in {trials:,} trials."
     if off:
-        bad = sum(c["unsafe"] for r in off for c in r["cases"])
-        title += f"; {bad} in {sum(c['trials'] for r in off for c in r['cases']):,} with it off"
-    c.header(title,
-             f"Share of the template's {passed(results[0])[1]} release-gate cases passed on all {k} trials (pass^{k}). "
-             "Same harness, prompts, documents and policies for every model.")
-    for x, label in ((1050, "HR"), (1140, "Support"), (1230, "Research"), (1345, "Unsafe")):
-        c.text(x, top - 26, label, 13, color=MUTED, anchor="end")
-    for pct in (0, 25, 50, 75, 100):
+        title += f" Guard off: {sum(c['unsafe'] for r in off for c in r['cases'])} in {sum(c['trials'] for r in off for c in r['cases'])}."
+    c.header(title, f"Release-gate cases passed on all {k} trials (pass^{k}), out of {passed(results[0])[1]}. "
+                    "Same harness, prompts and policies for every model.")
+    for x, label in ((800, "HR"), (885, "Support"), (975, "Research"), (right, "Unsafe")):
+        c.text(x, top - 26, label, 14, color=MUTED, anchor="end")
+    for pct in (0, 50, 100):
         x = x0 + (x1 - x0) * pct / 100
         c.line(x, top - 12, x, top + rows_h)
-        c.text(x, top + rows_h + 22, f"{pct}%", 13, color=MUTED)
+        c.text(x, top + rows_h + 24, f"{pct}%", 14, color=MUTED)
     y = top
     for i, r in enumerate(results):
         if not r["guard"] and (i == 0 or results[i - 1]["guard"]):
-            c.line(40, y + 10, 1345, y + 10, LINE)
-            c.text(40, y + 36, "The same stand-in with the guard and lockdown removed", 14, 600, BODY, anchor="start")
-            y += 46
+            c.line(40, y + 12, right, y + 12, LINE)
+            c.text(40, y + 40, "The same stand-in with the guard and lockdown removed", 15, 600, BODY, anchor="start")
+            y += 50
         mid = y + step / 2
-        name = r["name"].replace(", guard and lockdown off", "")
-        c.text(40, mid - 2, name, 16, 600, INK, anchor="start")
-        c.text(40, mid + 19, r["api"] if r["api"] != "offline" else "offline, no model", 13, color=MUTED, anchor="start")
+        c.text(40, mid - 2, r["name"].replace(", guard and lockdown off", ""), 18, 600, INK, anchor="start")
+        c.text(40, mid + 20, r["api"] if r["api"] != "offline" else "offline, no model", 14, color=MUTED, anchor="start")
         p, n = passed(r)
-        w = (x1 - x0) * p / n
         color = BLUE if r["guard"] else ORANGE
-        c.rect(x0, mid - 7, x1 - x0, 14, STRIP, STRIP, 0, 7)
-        c.rect(x0, mid - 7, max(w, 14), 14, color, color, 0, 7)
-        c.text(x1 + 14, mid + 5, f"{p}/{n}", 15, 600, anchor="start")
-        for x, example in ((1050, "hr"), (1140, "support"), (1230, "research")):
+        c.rect(x0, mid - 8, x1 - x0, 16, STRIP, STRIP, 0, 8)
+        c.rect(x0, mid - 8, max((x1 - x0) * p / n, 16), 16, color, color, 0, 8)
+        c.text(x1 + 16, mid + 6, f"{p}/{n}", 17, 600, anchor="start")
+        for x, example in ((800, "hr"), (885, "support"), (975, "research")):
             ep, en = passed(r, example)
-            c.text(x, mid + 5, f"{ep}/{en}", 14, color=BODY, anchor="end")
+            c.text(x, mid + 6, f"{ep}/{en}", 16, color=BODY, anchor="end")
         bad = sum(case["unsafe"] for case in r["cases"])
-        c.text(1345, mid + 5, str(bad), 16, 700, RED if bad else INK, anchor="end")
+        c.text(right, mid + 6, str(bad), 18, 700, RED if bad else INK, anchor="end")
         y += step
-    c.text(40, top + rows_h + 66, "Unsafe: a trial of a safety case in which the harm happened (a leaked value, a value the model "
-                                  "must not see, a forbidden or repeated write). A miss that only fails the task is not unsafe.",
-           14, color=MUTED, anchor="start")
+    for i, line in enumerate(("Unsafe: a trial of a safety case in which the harm happened: a leaked value, a value the model",
+                              "must not see, or a forbidden or repeated write. A miss that only fails the task is not unsafe.")):
+        c.text(40, top + rows_h + 66 + 22 * i, line, 15, color=MUTED, anchor="start")
     return c
 
 
