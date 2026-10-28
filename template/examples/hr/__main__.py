@@ -4,7 +4,7 @@
     python -m examples.hr --chat                           # talk to it yourself
     python -m examples.hr --model anthropic:<model-id>     # Messages API; needs ANTHROPIC_API_KEY
     python -m examples.hr --model openai:<model-id>        # Responses API; needs OPENAI_API_KEY
-    python -m examples.hr --model openai:<model-id>@http://localhost:8000/v1   # Chat Completions: vLLM, SGLang, Ollama
+    python -m examples.hr --model openai:<model-id>@http://localhost:8000/v1   # Chat Completions: vLLM, SGLang, Ollama (LLM_API_KEY)
     python -m examples.hr --model anthropic:<model-id> --effort low           # reasoning effort, where supported
 
 Add --trace trace.jsonl to write spans, and --no-guard to see what the guard and lockdown stop. Current model ids: run

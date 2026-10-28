@@ -82,10 +82,10 @@ toolbox = Toolbox(policy, lockdown=True)   # after untrusted content, every acti
 ```
 python -m examples.hr --model anthropic:<model-id>                 # Messages API, ANTHROPIC_API_KEY
 python -m examples.hr --model openai:<model-id>                    # Responses API, OPENAI_API_KEY
-python -m examples.hr --model openai:<model-id>@http://localhost:8000/v1   # Chat Completions: vLLM, SGLang, Ollama
+python -m examples.hr --model openai:<model-id>@http://localhost:8000/v1   # Chat Completions: vLLM, SGLang, Ollama; key in LLM_API_KEY
 ```
 
-Gemini works through its OpenAI-compatible endpoint: `openai:<model-id>@https://generativelanguage.googleapis.com/v1beta/openai` with your Gemini key in `OPENAI_API_KEY`. The adapters send each assistant turn back exactly as the provider returned it, thinking blocks and reasoning items included, because current reasoning models reject or lose a history whose reasoning was dropped or edited. Model ids change every few months. Check current ones in [`../sota`](../sota) or run [`../skill/building-ai-agents/scripts/check_freshness.py`](../skill/building-ai-agents/scripts/check_freshness.py).
+No API key? Any local [Ollama](https://ollama.com) model with tool support runs the whole loop for free: `--model openai:qwen3-vl:2b@http://127.0.0.1:11434/v1`. On 2026-10-28 that 2B model passed 12 of the 17 HR cases in one pass, including every guard and permission case; its misses were picking the wrong tool, returning empty answers and writing malformed tool arguments, which is what the gate is for. Gemini works through its OpenAI-compatible endpoint: `openai:<model-id>@https://generativelanguage.googleapis.com/v1beta/openai` with your Gemini key in `LLM_API_KEY`. The adapters send each assistant turn back exactly as the provider returned it, thinking blocks and reasoning items included, because current reasoning models reject or lose a history whose reasoning was dropped or edited. Model ids change every few months. Check current ones in [`../sota`](../sota) or run [`../skill/building-ai-agents/scripts/check_freshness.py`](../skill/building-ai-agents/scripts/check_freshness.py).
 
 ## What it leaves out, on purpose
 

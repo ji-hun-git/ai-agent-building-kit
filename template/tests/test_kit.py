@@ -334,6 +334,21 @@ class TestEdges(unittest.TestCase):
                                         {"role": "assistant", "content": "", "calls": []}]),
                          [{"role": "user", "content": "q"}])
 
+    def test_an_empty_answer_is_said_out_loud(self):
+        agent = Agent(Scripted([Reply("")]), "sys", Toolbox(Policy()))
+        self.assertIn("empty answer", agent.run(agent.start(ALICE), ALICE, "hi"))
+        with mock.patch("kit.agent.post", return_value={"choices": [{"message": {"content": None}}]}):
+            self.assertEqual(OpenAICompatible("m", "http://x/v1")("sys", [], []).text, "")
+        msgs = [{"role": "user", "content": "q"},
+                {"role": "assistant", "content": "", "calls": [{"id": "a", "name": "t", "args": {}}]}]
+        self.assertEqual(_to_openai(msgs)[1]["content"], "")  # never null: some servers reject it
+
+    def test_openai_key_goes_only_to_openai(self):
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "openai-key", "LLM_API_KEY": "local-key"}):
+            self.assertEqual(OpenAICompatible("m").api_key, "openai-key")
+            self.assertEqual(OpenAICompatible("m", "http://localhost:11434/v1").api_key, "local-key")
+            self.assertEqual(OpenAICompatible("m", "https://api.openai.com.evil.example/v1").api_key, "local-key")
+
     def test_retrieval_handles_particles_paraphrases_and_permissions(self):
         ko = Index([Doc("l", "연차 규정", "# 연차 규정\n\n## 연차\n\n연차는 매년 15일입니다.")])
         self.assertEqual(ko.search("연차가 며칠이에요?", ALICE)[0][0].doc_id, "l")

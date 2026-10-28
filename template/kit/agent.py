@@ -24,6 +24,7 @@ skill/building-ai-agents/scripts/check_freshness.py.
 
 import json
 import os
+import urllib.parse
 from dataclasses import dataclass, field
 
 from .context import Session, dumps
@@ -111,6 +112,8 @@ class Agent:
                 span.update({f"gen_ai.usage.{k}": v for k, v in reply.usage.items()})
                 span["content.output"] = reply.text
                 text = reply.text
+                if not reply.calls and not text.strip():  # say so, rather than show the user nothing
+                    text = "The model returned an empty answer. Please ask again."
                 if self.guard and not reply.calls:  # the final answer, before the user sees it
                     verdict = self.guard.output(text)
                     span["guard.output"] = verdict.labels
@@ -279,11 +282,15 @@ def _to_responses(messages) -> list[dict]:
 class OpenAICompatible:
     """Chat Completions: self-hosted vLLM, SGLang or Ollama, Gemini's OpenAI-compatible endpoint, and
     any other server that speaks it. For OpenAI's own current models use OpenAIResponses: from
-    GPT-5.4 on, Chat Completions calls tools only at reasoning effort none."""
+    GPT-5.4 on, Chat Completions calls tools only at reasoning effort none.
+
+    The key comes from OPENAI_API_KEY only when base_url is OpenAI's own API; any other server
+    gets LLM_API_KEY (or none), so an OpenAI key is never sent to a server that is not OpenAI."""
 
     def __init__(self, model: str, base_url: str = "https://api.openai.com/v1", api_key: str | None = None):
         self.model, self.base_url = model, base_url.rstrip("/")
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "none")
+        openai = urllib.parse.urlsplit(self.base_url).hostname == "api.openai.com"
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY" if openai else "LLM_API_KEY", "none")
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {"model": self.model, "messages": [{"role": "system", "content": system}] + _to_openai(messages)}
@@ -302,7 +309,7 @@ def _to_openai(messages) -> list[dict]:
         if m["role"] == "user":
             out.append({"role": "user", "content": m["content"]})
         elif m["role"] == "assistant":
-            msg = {"role": "assistant", "content": m["content"] or None}
+            msg = {"role": "assistant", "content": m["content"] or ""}  # null content is rejected by some servers
             if m["calls"]:
                 msg["tool_calls"] = [{"id": c["id"], "type": "function",
                                       "function": {"name": c["name"], "arguments": dumps(c["args"])}} for c in m["calls"]]

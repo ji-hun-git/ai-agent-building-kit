@@ -37,10 +37,13 @@ def trial(build, case: dict) -> tuple[bool, list[str]]:
     user = User(case["user"]["id"], frozenset(case["user"].get("roles", [])))
     session = agent.start(user)
     out = ""
-    for text in case["turns"]:
-        out = agent.run(session, user, text)
-        while isinstance(out, Pending) and case.get("approve") is not None:
-            out = agent.resume(session, user, approved=case["approve"])
+    try:
+        for text in case["turns"]:
+            out = agent.run(session, user, text)
+            while isinstance(out, Pending) and case.get("approve") is not None:
+                out = agent.resume(session, user, approved=case["approve"])
+    except APIError as e:  # one failed call fails its case, not the whole run
+        return False, [f"model call failed: {str(e)[:200]}"]
 
     final = "" if isinstance(out, Pending) else out
     called = [c["name"] for m in session.messages if m["role"] == "assistant" for c in m["calls"]]
