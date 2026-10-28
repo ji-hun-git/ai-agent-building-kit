@@ -18,7 +18,7 @@ if SDK:
     from agents.tracing import trace
     from agents.tracing.traces import NoOpTrace
 
-    from integrations.openai_agents import Context, build, port
+    from integrations.openai_agents import Context, build, model_from, port
     from integrations.openai_agents.__main__ import TOUR
 
 INTERN = User("u-intern", frozenset({"employee"}))
@@ -214,6 +214,36 @@ class TestEndToEnd(unittest.IsolatedAsyncioTestCase):
         ledger = result.context_wrapper.context.ledger
         self.assertEqual(len(ledger), 1)
         self.assertIn("submitted", next(iter(ledger.values())))
+
+    async def test_a_saved_approval_resumed_twice_files_once_with_a_persistent_ledger(self):
+        import functools
+        store, ran = {}, []
+        model = ScriptedModel([[function_call("request_leave", LEAVE, call_id="c1")]]
+                              + [[assistant_message("Done.")]] * 2)
+        hr = build(model)
+        leave = hr.toolbox.tools["request_leave"]
+        fn = leave.fn
+        leave.fn = lambda **kw: ran.append(kw) or fn(**kw)
+        result = await Runner.run(hr.agent, "Please request leave from 2026-11-02 to 2026-11-04.",
+                                  context=hr.start(INTERN, ledger=store), run_config=hr.run_config)
+        saved = json.dumps(result.to_state().to_json(context_serializer=Context.dump))
+        for _ in range(2):  # a double click, or a retry after a crash
+            state = await RunState.from_json(hr.agent, json.loads(saved),
+                                             context_deserializer=functools.partial(Context.load, ledger=store))
+            state.approve(state.get_interruptions()[0])
+            await Runner.run(hr.agent, state, run_config=hr.run_config)
+        self.assertEqual(len(ran), 1)
+        self.assertEqual(len(store), 1)
+
+    def test_openai_models_go_through_responses_and_store_nothing(self):
+        import agents
+        self.assertIsInstance(model_from("gpt-6-luna", api_key="test"), agents.OpenAIResponsesModel)
+        self.assertIsInstance(model_from("responses:muse-spark-1.3@https://api.meta.ai/v1", api_key="test"),
+                              agents.OpenAIResponsesModel)
+        self.assertIsInstance(model_from("qwen3-vl:2b@http://127.0.0.1:11434/v1"), agents.OpenAIChatCompletionsModel)
+        settings = build(model_from("gpt-6-luna", api_key="test")).agent.model_settings
+        self.assertIs(settings.store, False)
+        self.assertEqual(settings.response_include, ["reasoning.encrypted_content"])
 
 
 @unittest.skipUnless(SDK, NEEDS_SDK)

@@ -107,10 +107,8 @@ class Conversation:
         ok, why = self.toolbox.policy.check(self.user, tool.name, args)
         if not ok:
             return "deny", f"Denied: {why}. Tell the user you cannot do this."
-        if self.guard and tool.outbound and (out := self.guard.egress(dumps(args))).findings:
-            rules = ", ".join(sorted({f.rule for f in out.findings}))
-            return "deny", (f"Blocked: this message would carry {rules} out of the session. "
-                            "Do not retry; tell the user what was blocked.")
+        if blocked := self.egress(tool, args):
+            return "deny", blocked
         if tool.kind != "read" and self._key(tool.name, args) in self.session.ledger:
             return "allow", "already done in this session"
         taint = self.session.taint
@@ -122,6 +120,14 @@ class Conversation:
         if tool.needs_approval:
             return "ask", f"{tool.name} is {'an' if tool.kind[0] in 'aeiou' else 'a'} {tool.kind} action"
         return "allow", ""
+
+    def egress(self, tool: Tool, args: dict) -> str:
+        """Why the egress guard stops this outbound call, or "" if it does not."""
+        if self.guard and tool.outbound and (out := self.guard.egress(dumps(args))).findings:
+            rules = ", ".join(sorted({f.rule for f in out.findings}))
+            return (f"Blocked: this message would carry {rules} out of the session. "
+                    "Do not retry; tell the user what was blocked.")
+        return ""
 
     async def pre_tool_use(self, data: dict, tool_use_id: str | None, context: dict) -> dict:
         """The PreToolUse hook. Denies what the rules forbid and sends to a person what needs one."""
@@ -152,6 +158,9 @@ class Conversation:
         key = self.toolbox.key(self.session, call)
         approved = key in self.approved
         self.approved.discard(key)
+        tool = self.toolbox.tools.get(name)
+        if tool and (blocked := self.egress(tool, args)):  # held here too, if the hook was bypassed
+            return Result(blocked, True)
         try:
             result = self.toolbox.execute(call, self.user, self.session, approved=approved)
         except NeedsApproval as e:  # the gates were bypassed (an allow rule, bypassPermissions): fail closed

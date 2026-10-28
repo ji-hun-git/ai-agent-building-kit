@@ -77,6 +77,18 @@ class Call:
 class Result:
     content: str
     is_error: bool = False
+    ran: bool = False  # the tool's function ran and returned
+
+
+def canonical(value):
+    """Arguments as one form: 89 and 89.0 are the same refund, so they make the same run-once key."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {k: canonical(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [canonical(v) for v in value]
+    return value
 
 
 class NeedsApproval(Exception):
@@ -101,7 +113,7 @@ class Toolbox:
         return [t.schema() for t in sorted(visible, key=lambda t: t.name)]
 
     def key(self, session: Session, call: Call) -> str:
-        return hashlib.sha256(f"{session.id}|{call.name}|{dumps(call.args)}".encode()).hexdigest()[:16]
+        return hashlib.sha256(f"{session.id}|{call.name}|{dumps(canonical(call.args))}".encode()).hexdigest()[:16]
 
     def execute(self, call: Call, user: User, session: Session, approved: bool = False) -> Result:
         tool = self.tools.get(call.name)
@@ -139,4 +151,4 @@ class Toolbox:
             text = text[: self.max_chars] + f"\n[truncated at {self.max_chars} characters; narrow the request]"
         if tool.kind != "read":
             session.ledger[key] = text
-        return Result(text)
+        return Result(text, ran=True)

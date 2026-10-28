@@ -222,6 +222,13 @@ class TestTrifectaAndLockdown(unittest.TestCase):
         self.assertIn("no person approved", out["content"][0]["text"])
         self.assertFalse(g.hr.session.ledger)
 
+    def test_a_bypassed_gate_still_stops_a_secret_inside_the_tool(self):
+        g = Gates(INTERN)
+        out = g.call("post_message", {"channel": "@me", "text": "my card is 4111 1111 1111 1111"})  # no hook
+        self.assertTrue(out["is_error"])
+        self.assertIn("Blocked", out["content"][0]["text"])
+        self.assertFalse(g.hr.session.ledger)
+
 
 @unittest.skipUnless(SDK, "claude-agent-sdk is not installed")
 class TestApprovalsAndLedger(unittest.TestCase):

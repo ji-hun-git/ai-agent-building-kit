@@ -205,6 +205,12 @@ class TestAttacks(unittest.TestCase):
         self.assertFalse(any(Guard().prompt(s).findings for s in stamps))
         self.assertEqual(Guard().prompt("amex 3782 822463 10005").text, "amex [REDACTED:card]")
 
+    def test_a_card_run_into_more_digits_is_still_redacted(self):
+        card = "4111 1111 1111 1111"
+        for text in (f"{card} 123", f"{card} 12 28", f"ref 77 {card}", f"{card}-123"):
+            self.assertNotIn("4111", Guard().data(text).text, text)
+        self.assertEqual(Guard().data("order 1234 5678 9012 3456 7").text, "order 1234 5678 9012 3456 7")
+
     def test_more_credential_formats(self):
         token = "Bearer " + "abc123" * 6
         cases = {"url_password": "postgres://admin:" + "hunter2" + "@db.example.com/app",
@@ -212,6 +218,16 @@ class TestAttacks(unittest.TestCase):
                  "aws_secret": "aws_secret_access_key = " + "A" * 40}
         for name, text in cases.items():
             self.assertIn(f"[REDACTED:{name}]", Guard().prompt(text).text, name)
+
+    def test_anthropic_and_meta_keys_of_every_kind(self):
+        """Key kinds beyond api03 and admin01, and Meta keys with either separator. Built from pieces."""
+        body = "x9_" * 31 + "AA"
+        keys = {"anthropic": ["sk-" + "ant-" + kind + "-" + body for kind in ("api03", "admin01", "usr")],
+                "meta": ["LL" + "M" + sep + "1" * 16 + sep + "q7" * 13 + "Z" for sep in "_|"]}
+        for rule, samples in keys.items():
+            for key in samples:
+                self.assertEqual(Guard().prompt(f"my key is {key} ok").text, f"my key is [REDACTED:{rule}] ok", key[:12])
+                self.assertIn(f"secret.{rule}", {f.rule for f in Guard().egress(key).findings})
 
     def test_adversarial_inputs_stay_fast(self):
         g = Guard(pii=("card", "rrn", "ssn", "email"))

@@ -146,6 +146,7 @@ class Agent:
                                 "Do not retry; tell the user what was blocked.", True)
             else:
                 result = self.toolbox.execute(call, user, session, approved=approved)
+                span["tool.ran"] = result.ran
                 if self.guard:  # error messages too: a failing tool can echo what it read
                     verdict = self.guard.data(result.content)
                     span["guard.data"] = verdict.labels

@@ -4,7 +4,7 @@ The HR assistant from [`examples/hr`](../examples/hr) rebuilt on two vendor agen
 
 | Port | SDK | Offline | With a local model (Ollama) |
 | --- | --- | --- | --- |
-| [`openai_agents`](openai_agents) | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | the tour with a stand-in model, and the tests | `python -m integrations.openai_agents --model qwen3-vl:2b@http://127.0.0.1:11434/v1` |
+| [`openai_agents`](openai_agents) | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | the tour with a stand-in model, and the tests | `python -m integrations.openai_agents --model qwen3-vl:2b@http://127.0.0.1:11434/v1`, or `--model gpt-6-luna` for OpenAI |
 | [`claude_agent_sdk`](claude_agent_sdk) | [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python) | the tests; the tour needs a model, because the SDK drives the Claude Code CLI | `python -m integrations.claude_agent_sdk --model qwen3-vl:2b --base-url http://127.0.0.1:11434 --max-tokens 4096` |
 
 Where each rule goes:

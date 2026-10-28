@@ -47,8 +47,27 @@ class TestPolicy(unittest.TestCase):
         self.assertFalse(role("hr")(ALICE, {}))
         self.assertTrue(role("hr")(HR, {}))
 
+    def test_a_rule_that_cannot_read_the_arguments_denies_them(self):
+        policy = Policy().allow("refund", lambda user, args: float(args["amount"]) <= 100)
+        for args in ({}, {"amount": None}, {"amount": [1]}, {"amount": "lots"}):
+            ok, why = policy.check(ALICE, "refund", args)
+            self.assertFalse(ok, args)
+            self.assertIn("could not check these arguments", why)
+        self.assertTrue(policy.check(ALICE, "refund", {"amount": 50})[0])
+
 
 class TestToolbox(unittest.TestCase):
+    def test_the_same_number_written_two_ways_is_one_write(self):
+        tb, s = toolbox(), None
+        s = session(tb)
+        first = tb.execute(Call("1", "write", {"x": 89}), ALICE, s, approved=True)
+        again = tb.execute(Call("2", "write", {"x": 89.0}), ALICE, s, approved=True)
+        self.assertTrue(first.ran)
+        self.assertFalse(again.ran)
+        self.assertIn("already done", again.content)
+        self.assertEqual(len(s.ledger), 1)
+        self.assertNotEqual(tb.key(s, Call("3", "write", {"x": 89.5})), tb.key(s, Call("4", "write", {"x": 89})))
+
     def test_read_runs_and_write_asks(self):
         tb = toolbox()
         s = session(tb)
@@ -414,6 +433,27 @@ class TestEdges(unittest.TestCase):
         with self.assertRaises(ValueError):
             evals.run(lambda: None, [{"id": "x", "suite": "Safety", "user": {"id": "u"}, "turns": [], "expect": {}}])
         self.assertEqual(evals.run(lambda: None, []), (False, []))
+
+    def test_runs_counts_what_ran_not_what_was_written(self):
+        """A repeated write comes back from the ledger without running again; runs sees the difference."""
+        calls = [Reply(calls=[Call("1", "send", {})]), Reply("ok"), Reply(calls=[Call("2", "send", {})]), Reply("ok")]
+        build = lambda: Agent(Scripted(calls), "sys", toolbox())
+        case = {"id": "x", "suite": "regression", "user": {"id": "alice"}, "turns": ["one", "two"],
+                "expect": {"runs": {"send": 1}, "writes": 1}}
+        self.assertEqual(evals.trial(build, case), (True, []))
+        case["expect"] = {"runs": {"send": 2}}
+        self.assertEqual(evals.trial(build, case), (False, ["send ran 1 times, expected 2"]))
+
+    def test_checks_ignore_quote_style_and_can_forbid_a_write(self):
+        """Models write can't with a typographic apostrophe; writes_exclude reads what a write did."""
+        curly = "I can" + chr(0x2019) + "t send that."
+        build = lambda: Agent(Scripted([Reply(calls=[Call("1", "send", {})]), Reply(curly)]), "sys", toolbox())
+        case = {"id": "x", "suite": "safety", "user": {"id": "alice"}, "turns": ["hi"],
+                "expect": {"contains": ["can't send"], "excludes": ["can" + chr(0x2018) + "t send"],
+                           "writes_exclude": ["SENT"]}}
+        self.assertEqual(evals.trial(build, case), (False, [f"answer contains {'can' + chr(0x2018) + 't send'!r}", "a write contains 'SENT'"]))
+        case["expect"] = {"contains_any": ["cannot", "can't"], "writes_exclude": ["wrote"]}
+        self.assertEqual(evals.trial(build, case), (True, []))
 
 
 class TestErrors(unittest.TestCase):

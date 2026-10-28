@@ -60,9 +60,9 @@ python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3
 
 **Read** [`kit/tools.py`](../template/kit/tools.py): every call passes the same checks in the same order. Then run `python -m examples.support` and watch the refund wait for a person.
 
-**Try** Add a `cancel_order(ticket_id)` tool to [`examples/support`](../template/examples/support/__init__.py). Decide its kind (read, write or irreversible) and whether it is outbound. Give it a policy rule, then add a case to `examples/support/cases.json` that expects it to wait for approval and write nothing.
+**Try** Add a `cancel_order(ticket_id)` tool to [`examples/support`](../template/examples/support/__init__.py). Decide its kind (read, write or irreversible) and whether it is outbound, and give it a policy rule. Add a case to `examples/support/cases.json` that asks to cancel the order on T-1 and expects `{"pending": true, "writes": 0}`, and run the gate. It passes, yet your tool never ran: the stand-in model only calls the tools it was written for, so it read the ticket and paused on a refund instead. Add `"called": ["cancel_order"]` to the case and watch it fail, then add a route to [`stand_in.py`](../template/examples/support/stand_in.py) that calls your tool when the message says "cancel".
 
-**Done when** `python -m kit.evals examples/support/cases.json --agent examples.support:build` passes with your case, and fails if you mark the tool `read`.
+**Done when** `python -m kit.evals examples/support/cases.json --agent examples.support:build` passes with your case, and fails if you mark the tool `read`. A case that does not check which tool ran can pass for the wrong reason; a real model would have called your tool, and the stand-in is there to make that visible.
 
 ### 4. Acting as the user
 
@@ -127,9 +127,9 @@ Try the other two adapters too: `anthropic:qwen3-vl:2b@http://127.0.0.1:11434/v1
 
 **Run** `python -m examples.research` and `python -m examples.research --no-guard`, and compare the second turn.
 
-**Try** Add a note about colours to `examples/research/docs` and a case that asks about battery and colour together.
+**Try** Add a note about colours to `examples/research/docs` (for example, that it comes in black, white and red) and a case that asks about battery and colour together, approves the save, and expects `"18 hours"`, `"red"` and one write.
 
-**Done when** your case passes. Then say what would go wrong if researchers could save, and what the lead never sees.
+**Done when** your case passes. Your note also makes `missing-part-says-so` fail, because red is no longer missing: that is the gate doing its job. Change that case to ask about something the notes still do not cover. Then say what would go wrong if researchers could save, and what the lead never sees.
 
 ### 11. Moving to an SDK
 

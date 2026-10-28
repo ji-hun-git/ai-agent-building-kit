@@ -129,7 +129,8 @@ SECRETS = {
     "aws": r"\b(?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}\b",
     "github": r"\b(?:gh[pousr]_[0-9a-zA-Z]{36}|github_pat_\w{82})\b",
     "openai": r"\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,200}T3BlbkFJ[A-Za-z0-9_-]{20,200}",
-    "anthropic": r"\bsk-ant-(?:api|admin)\d\d-[\w-]{80,200}",
+    "anthropic": r"\bsk-ant-[a-z]{2,10}\d{0,2}-[\w-]{80,200}",  # api03, admin01, and newer key kinds
+    "meta": r"\bLLM[|_]\d{12,20}[|_][\w-]{20,100}",          # Meta Model API and Llama API keys
     "slack": r"\bxox[abposr]-[0-9A-Za-z-]{10,200}",
     "google": r"\bAIza[\w-]{35}\b",
     "stripe": r"\b(?:sk|rk)_(?:test|live|prod)_[0-9a-zA-Z]{10,99}\b",
@@ -158,11 +159,18 @@ def redact_keys(text: str) -> tuple[str, int]:
     return "".join(out), n
 
 
-def card(number: str) -> bool:
+def luhn_card(digits: str) -> bool:
     """15 to 19 digits, a card network's first digit, and a valid Luhn check digit."""
-    digits = [int(d) for d in re.sub(r"\D", "", number)]
-    luhn = sum(d if i % 2 == 0 else (d * 2 - 9 if d > 4 else d * 2) for i, d in enumerate(digits[::-1]))
-    return 15 <= len(digits) <= 19 and digits[0] in (2, 3, 4, 5, 6) and luhn % 10 == 0
+    d = [int(c) for c in digits]
+    luhn = sum(x if i % 2 == 0 else (x * 2 - 9 if x > 4 else x * 2) for i, x in enumerate(d[::-1]))
+    return 15 <= len(d) <= 19 and d[0] in (2, 3, 4, 5, 6) and luhn % 10 == 0
+
+
+def card(number: str) -> bool:
+    """A card number, or a card written in groups and run into more groups, such as a CVV or an
+    expiry ("4111 1111 1111 1111 123"): any run of whole groups that is a card counts."""
+    groups = [g for g in re.split(r"[ -]", number) if g]
+    return any(luhn_card("".join(groups[i:j])) for i in range(len(groups)) for j in range(i + 1, len(groups) + 1))
 
 
 PII = {

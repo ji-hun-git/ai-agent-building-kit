@@ -62,10 +62,13 @@ class Context:
                 "ledger": dict(self.ledger), "history": list(self.history)}
 
     @classmethod
-    def load(cls, data) -> Context:
-        """For RunState.from_json(agent, data, context_deserializer=Context.load)."""
+    def load(cls, data, ledger=None) -> Context:
+        """For RunState.from_json(agent, data, context_deserializer=Context.load). With a persistent
+        ledger, pass it (functools.partial(Context.load, ledger=store)): a saved run resumed twice then
+        finds its write already done, instead of a copy of the ledger from when it was saved."""
         return cls(User(data["user"]["id"], frozenset(data["user"]["roles"])), data["id"],
-                   Taint(**data["taint"]), dict(data["ledger"]), list(data["history"]))
+                   Taint(**data["taint"]), dict(data["ledger"]) if ledger is None else ledger,
+                   list(data["history"]))
 
 
 # ---------------------------------------------------------------- tools
@@ -229,6 +232,22 @@ class Assistant:
         return reply
 
 
+def model_from(spec: str, api_key: str | None = None):
+    """`<id>` for OpenAI's Responses API, which its current models need for tools; `<id>@<base_url>`
+    for a Chat Completions server (Ollama, vLLM, SGLang, Meta's Model API); `responses:<id>@<base_url>`
+    for another Responses server."""
+    from openai import AsyncOpenAI
+
+    if spec.startswith("responses:") or "@" not in spec:
+        model_id, _, base = spec.removeprefix("responses:").partition("@")
+        base = (base or "https://api.openai.com/v1").rstrip("/")
+        if not model_id:
+            raise ValueError(f"use <id>, <id>@<base_url> or responses:<id>@<base_url>, not {spec!r}")
+        client = AsyncOpenAI(base_url=base, api_key=key_for(base, "api.openai.com", "OPENAI_API_KEY", api_key))
+        return agents.OpenAIResponsesModel(model_id, client)
+    return chat_model(spec, api_key)
+
+
 def chat_model(spec: str, api_key: str | None = None) -> agents.OpenAIChatCompletionsModel:
     """`<id>@<base_url>` on a Chat Completions server (Ollama, vLLM, SGLang). The client always gets an
     explicit key, so the SDK never reads OPENAI_API_KEY itself; kit.net.key_for sends that key only to
@@ -259,8 +278,11 @@ def build(model=None, max_turns: int = 8) -> Assistant:
     template = examples.hr.build()  # its prompt, its toolbox (tools, policy, lockdown) and its guard
     guard, toolbox = template.guard, template.toolbox
     screen_prompt, screen_answer = guardrails(guard)
+    # Like the template's adapter: nothing stored at the provider, reasoning replayed from the response.
+    settings = (agents.ModelSettings(store=False, response_include=["reasoning.encrypted_content"])
+                if isinstance(model, agents.OpenAIResponsesModel) else agents.ModelSettings())
     agent = agents.Agent(
-        name="hr", instructions=template.system, model=model,
+        name="hr", instructions=template.system, model=model, model_settings=settings,
         tools=[port(t, toolbox, guard) for t in sorted(toolbox.tools.values(), key=lambda t: t.name)],
         input_guardrails=[screen_prompt], output_guardrails=[screen_answer])
     run_config = agents.RunConfig(
