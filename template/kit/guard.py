@@ -328,7 +328,8 @@ class GuardModel:
 
     def __init__(self, model: str, base_url: str, format: str = "llama-guard", policy: str = "",
                  unsafe: str = "1", block_controversial: bool = False, api_key: str | None = None):
-        assert format in ("llama-guard", "qwen3guard", "policy")
+        if format not in ("llama-guard", "qwen3guard", "policy"):
+            raise ValueError(f"format must be llama-guard, qwen3guard or policy, not {format!r}")
         self.model, self.base_url, self.format = model, base_url.rstrip("/"), format
         self.policy, self.unsafe, self.block_controversial = policy, unsafe, block_controversial
         self.api_key = api_key or os.environ.get("GUARD_API_KEY", "none")

@@ -41,14 +41,17 @@ class Tool:
     approval: bool | None = None # override for writes; irreversible always asks
 
     def __post_init__(self):
-        assert self.kind in KINDS, f"kind must be one of {KINDS}"
-        assert not (self.kind == "irreversible" and self.approval is False), "irreversible actions always ask"
+        # Real exceptions, not asserts: `python -O` removes asserts, and these are safety rules.
+        if self.kind not in KINDS:
+            raise ValueError(f"{self.name}: kind must be one of {KINDS}")
+        if self.kind == "irreversible" and self.approval is False:
+            raise ValueError(f"{self.name}: irreversible actions always ask; drop approval=False")
 
     @property
     def needs_approval(self) -> bool:
         if self.kind == "read":
             return False
-        return True if self.approval is None else self.approval
+        return self.kind == "irreversible" or self.approval is not False
 
     def schema(self) -> dict:
         return {

@@ -59,9 +59,15 @@ class Agent:
         self.tracer = tracer or Tracer()
         self.model_id, self.max_steps, self.guard = model_id, max_steps, guard
 
-    def start(self, user: User) -> Session:
-        """Freeze the prompt and this user's tool list for the whole session."""
-        return Session(system=self.system, tools=self.toolbox.schemas(user))
+    def start(self, user: User, session_id: str | None = None, ledger=None) -> Session:
+        """Freeze the prompt and this user's tool list for the whole session.
+
+        Writes run once per session. To keep that across restarts, pass the session's id when you
+        resume it and a persistent mapping as the ledger (a database table, or shelve.open(path))."""
+        extra = {"id": session_id} if session_id else {}
+        if ledger is not None:
+            extra["ledger"] = ledger
+        return Session(system=self.system, tools=self.toolbox.schemas(user), **extra)
 
     def run(self, session: Session, user: User, text: str) -> str | Pending:
         if session.pending:  # the user moved on: a call waiting for approval never runs later
@@ -82,7 +88,8 @@ class Agent:
             return self._loop(session, user, queue=[])
 
     def resume(self, session: Session, user: User, approved: bool) -> str | Pending:
-        assert session.pending, "nothing is waiting for approval"
+        if not session.pending:
+            raise RuntimeError("nothing is waiting for approval")
         call, queue = session.pending["call"], session.pending["queue"]
         session.pending = None
         with self.tracer.span("invoke_agent", **{"session.id": session.id, "approval.granted": approved}):

@@ -87,6 +87,20 @@ python -m examples.hr --model openai:<model-id>@http://localhost:8000/v1   # Cha
 
 No API key? Any local [Ollama](https://ollama.com) model with tool support runs the whole loop for free: `--model openai:qwen3-vl:2b@http://127.0.0.1:11434/v1`. On 2026-10-28 that 2B model passed 12 of the 17 HR cases in one pass, including every guard and permission case; its misses were picking the wrong tool, returning empty answers and writing malformed tool arguments, which is what the gate is for. Gemini works through its OpenAI-compatible endpoint: `openai:<model-id>@https://generativelanguage.googleapis.com/v1beta/openai` with your Gemini key in `LLM_API_KEY`. The adapters send each assistant turn back exactly as the provider returned it, thinking blocks and reasoning items included, because current reasoning models reject or lose a history whose reasoning was dropped or edited. Model ids change every few months. Check current ones in [`../sota`](../sota) or run [`../skill/building-ai-agents/scripts/check_freshness.py`](../skill/building-ai-agents/scripts/check_freshness.py).
 
+## Moving to a framework
+
+For production, the guide's Step 1 says to build on a vendor harness. This code is the reference for what each rule must do; here is where each one goes. Hook names change between releases, so check them against the current docs.
+
+| Rule here | Claude Agent SDK | OpenAI Agents SDK | Any other framework |
+| --- | --- | --- | --- |
+| The user's own permissions (`Policy`) | deny rules, plus a `PreToolUse` hook for checks that must run on every call | a check at the top of each tool, with the user from the run context | one wrapper around every tool call |
+| Trifecta rule and lockdown (`Toolbox`) | the same `PreToolUse` hook, keeping the session's taint | `needs_approval` on outbound and write tools, decided from what the run has read | the same wrapper |
+| Approvals (`Pending`, `resume`) | `canUseTool` | `needs_approval`, then `approve` or `reject` on the `RunState` | stop the run, store it, resume with the person's answer |
+| Guard on prompts, data, messages and answers (`Guard`) | before the query, inside each tool before it returns, and on the final text | input and output guardrails, and inside each tool | around the model call and the tool call |
+| Run-once writes (the ledger) | a database table keyed like `Toolbox.key` | the same, with `RunState.to_json()` for the run itself | the same |
+| Traces (`Tracer`) | the SDK's OpenTelemetry traces, plus spans for guards and approvals | `add_trace_processor()` into your pipeline | OpenTelemetry GenAI spans |
+| The gate (`kit.evals`) | unchanged: point `build()` at the new agent | unchanged | unchanged |
+
 ## What it leaves out, on purpose
 
 Streaming, async, multi-agent orchestration, durable execution, a vector database, an OpenTelemetry exporter, a web UI. Each has a mature project you should use instead of growing this one; [`../sota/repos.md`](../sota/repos.md) lists them. Keep the rules this code enforces when you swap the parts.

@@ -93,7 +93,7 @@ class TestToolbox(unittest.TestCase):
         self.assertIn("private data and untrusted content", e.exception.reason)
 
     def test_irreversible_always_asks(self):
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             Tool("pay", "pays", {}, fn=lambda user: "", kind="irreversible", approval=False)
 
     def test_schemas_are_sorted_and_filtered(self):
@@ -308,6 +308,27 @@ class TestEdges(unittest.TestCase):
         calls = [c["id"] for m in session.messages if m["role"] == "assistant" for c in m["calls"]]
         results = [m["id"] for m in session.messages if m["role"] == "tool"]
         self.assertEqual(calls, results)  # every call has its result, so the history stays valid
+
+    def test_irreversible_asks_even_under_python_optimised(self):
+        import subprocess
+        import sys
+        code = ("from kit import Tool\n"
+                "try:\n    Tool('pay', 'pays', {}, fn=print, kind='irreversible', approval=False)\n"
+                "except ValueError:\n    print('refused')")
+        out = subprocess.run([sys.executable, "-O", "-c", code], capture_output=True, text=True,
+                             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.assertEqual(out.stdout.strip(), "refused", out.stderr)
+
+    def test_writes_run_once_across_a_restart(self):
+        ledger = {}  # stands in for a database table or shelve.open(path)
+        for attempt in range(2):  # two processes: the second resumes the same session
+            agent = self.approvals_agent([Reply(calls=[Call("1", "pay", {"n": 5})]), Reply("ok")])
+            session = agent.start(ALICE, session_id="s-42", ledger=ledger)
+            out = agent.run(session, ALICE, "pay 5")
+            if isinstance(out, Pending):
+                agent.resume(session, ALICE, approved=True)
+        self.assertEqual(len(ledger), 1)
+        self.assertIn("not repeated", [m for m in session.messages if m["role"] == "tool"][0]["content"])
 
     def test_tools_gated_by_arguments_can_still_be_listed(self):
         policy = (Policy().allow("post", only_values("channel", {"@me"}))
