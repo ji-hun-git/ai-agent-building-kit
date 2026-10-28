@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.DS_Store
+trace*.jsonl
+# local only: source recordings are not redistributed
+*.mp4
+*.mp3

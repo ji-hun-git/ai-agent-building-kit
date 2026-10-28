@@ -1,0 +1,23 @@
+"""kit: a small, dependency-free harness for building production AI agents.
+
+    from kit import Agent, Toolbox, Tool, Policy, User, Index, Doc, search_tool
+
+Read the modules in this order: policy, context, tools, retrieval, agent, trace,
+release, evals. Each one closes a specific way agents fail in production.
+"""
+
+from .agent import Agent, Anthropic, OpenAICompatible, Pending, Reply, Scripted
+from .context import Session, fingerprint, load_prompt
+from .policy import Policy, Taint, User, anyone, only_values, own_records, role
+from .release import bundle
+from .retrieval import Doc, Index, search_tool
+from .tools import Call, NeedsApproval, Result, Tool, Toolbox
+from .trace import Tracer
+
+__all__ = [
+    "Agent", "Anthropic", "OpenAICompatible", "Pending", "Reply", "Scripted",
+    "Session", "fingerprint", "load_prompt",
+    "Policy", "Taint", "User", "anyone", "only_values", "own_records", "role",
+    "bundle", "Doc", "Index", "search_tool",
+    "Call", "NeedsApproval", "Result", "Tool", "Toolbox", "Tracer",
+]

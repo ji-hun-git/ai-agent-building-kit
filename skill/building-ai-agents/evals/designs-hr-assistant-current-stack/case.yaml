@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: designs-hr-assistant-current-stack
+expected_outcome: |
+  design.md is a buildable design for the HR assistant on a stack verified as current on the day of the run:
+  dated model and SDK choices with sources, permission-aware retrieval using the employee's own identity,
+  confirmed and idempotent Workday writes, structural prompt-injection controls for retrieved content,
+  an eval plan with regression cases and a required release gate, and no prices or currency figures.

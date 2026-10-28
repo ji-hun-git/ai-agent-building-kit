@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: catches-outdated-snapshot
+expected_outcome: |
+  versions.md targets the MCP specification revision that is current on the day of the run and pins MCP SDK and
+  agent SDK versions that match the latest releases that day, says where it verified them, and notices when an
+  older source (the skill's own snapshot, training knowledge or older tutorials) is out of date. It reflects the
+  current spec's authorization guidance, such as client registration by metadata document instead of dynamic
+  client registration. Run the with-skill configuration against a copy of the skill whose snapshot is
+  backdated to 2026-03-02 (build it with make_stale_skill.py in this folder), so the case tests whether the skill
+  catches its own outdated snapshot rather than trusting it.

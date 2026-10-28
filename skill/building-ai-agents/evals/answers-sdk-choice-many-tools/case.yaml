@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: answers-sdk-choice-many-tools
+expected_outcome: |
+  answer.md is short and names a specific current model and agent SDK version verified on the day of the run,
+  recommends deferred tool loading with tool search for ~200 tools, task-shaped tools (or MCP servers) rather than
+  one tool per endpoint, and approval plus idempotency for tools that write.

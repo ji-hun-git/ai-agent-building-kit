@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this kit, please cite it as below."
+title: "AI Agent Building Kit"
+authors:
+  - family-names: Chae
+    given-names: Jihun
+    affiliation: "KAIST Graduate School of Culture Technology"
+    email: chaejihun@kaist.ac.kr
+date-released: 2026-10-28
+version: "2026.10"
+url: "https://github.com/ji-hun-git/ai-agent-building-kit"
+license: MIT
+keywords:
+  - ai agents
+  - agent architecture
+  - retrieval-augmented generation
+  - model context protocol
+  - prompt injection
+  - evaluation

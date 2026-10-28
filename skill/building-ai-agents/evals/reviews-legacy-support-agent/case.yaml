@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: reviews-legacy-support-agent
+expected_outcome: |
+  review.md is a prioritized modernization review that catches the security and data-exposure flaws first
+  (shared admin key, cross-customer semantic cache, classifier-only injection defense, full-content logs,
+  unconfirmed refunds), upgrades retrieval and release practice, and names replacement models and SDKs
+  that were checked as current on the day of the run.

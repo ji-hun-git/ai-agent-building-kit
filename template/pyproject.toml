@@ -1,0 +1,15 @@
+[project]
+name = "agent-kit-template"
+version = "2026.10.28"
+description = "A small, dependency-free harness for production AI agents: permissions, approvals, retrieval, traces, evals."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Jihun Chae", email = "chaejihun@kaist.ac.kr" }]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/ji-hun-git/ai-agent-building-kit"
+
+[tool.setuptools]
+packages = ["kit"]

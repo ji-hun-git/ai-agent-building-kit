@@ -1,0 +1,222 @@
+{
+  "checked": "2026-10-28",
+  "items": [
+    {
+      "source": "pypi",
+      "key": "anthropic",
+      "label": "Anthropic Python SDK",
+      "version": "2.3.0",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "pypi",
+      "key": "claude-agent-sdk",
+      "label": "Claude Agent SDK (Python)",
+      "version": "0.2.174",
+      "released": "2026-10-24"
+    },
+    {
+      "source": "pypi",
+      "key": "openai",
+      "label": "OpenAI Python SDK",
+      "version": "3.40.0",
+      "released": "2026-10-27"
+    },
+    {
+      "source": "pypi",
+      "key": "openai-agents",
+      "label": "OpenAI Agents SDK (Python)",
+      "version": "0.24.0",
+      "released": "2026-10-15"
+    },
+    {
+      "source": "pypi",
+      "key": "google-genai",
+      "label": "Google Gen AI SDK (Python)",
+      "version": "2.33.0",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "pypi",
+      "key": "google-adk",
+      "label": "Google Agent Development Kit",
+      "version": "2.13.0",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "pypi",
+      "key": "agent-framework",
+      "label": "Microsoft Agent Framework (Python)",
+      "version": "1.23.0",
+      "released": "2026-10-22"
+    },
+    {
+      "source": "pypi",
+      "key": "langgraph",
+      "label": "LangGraph",
+      "version": "1.2.18",
+      "released": "2026-10-26"
+    },
+    {
+      "source": "pypi",
+      "key": "deepagents",
+      "label": "LangChain Deep Agents",
+      "version": "0.7.32",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "pypi",
+      "key": "mcp",
+      "label": "MCP Python SDK",
+      "version": "2.3.0",
+      "released": "2026-10-02"
+    },
+    {
+      "source": "pypi",
+      "key": "a2a-sdk",
+      "label": "A2A Python SDK",
+      "version": "1.3.0",
+      "released": "2026-10-27"
+    },
+    {
+      "source": "pypi",
+      "key": "inspect-ai",
+      "label": "UK AISI Inspect",
+      "version": "0.3.285",
+      "released": "2026-10-25"
+    },
+    {
+      "source": "pypi",
+      "key": "ragas",
+      "label": "RAGAS",
+      "version": "0.4.3",
+      "released": "2026-01-13"
+    },
+    {
+      "source": "pypi",
+      "key": "docling",
+      "label": "Docling",
+      "version": "2.143.1",
+      "released": "2026-10-27"
+    },
+    {
+      "source": "pypi",
+      "key": "langfuse",
+      "label": "Langfuse SDK",
+      "version": "5.0.4",
+      "released": "2026-10-21"
+    },
+    {
+      "source": "pypi",
+      "key": "opentelemetry-sdk",
+      "label": "OpenTelemetry SDK (Python)",
+      "version": "1.45.1",
+      "released": "2026-10-06"
+    },
+    {
+      "source": "npm",
+      "key": "@anthropic-ai/sdk",
+      "label": "Anthropic TypeScript SDK",
+      "version": "1.3.0",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "npm",
+      "key": "@anthropic-ai/claude-agent-sdk",
+      "label": "Claude Agent SDK (TypeScript)",
+      "version": "0.3.312",
+      "released": "2026-10-27"
+    },
+    {
+      "source": "npm",
+      "key": "openai",
+      "label": "OpenAI TypeScript SDK",
+      "version": "7.45.1",
+      "released": "2026-10-27"
+    },
+    {
+      "source": "npm",
+      "key": "@openai/agents",
+      "label": "OpenAI Agents SDK (TypeScript)",
+      "version": "0.21.0",
+      "released": "2026-10-20"
+    },
+    {
+      "source": "npm",
+      "key": "@google/genai",
+      "label": "Google Gen AI SDK (TypeScript)",
+      "version": "2.31.0",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "npm",
+      "key": "@modelcontextprotocol/sdk",
+      "label": "MCP TypeScript SDK",
+      "version": "1.32.2",
+      "released": "2026-10-23"
+    },
+    {
+      "source": "npm",
+      "key": "@a2a-js/sdk",
+      "label": "A2A TypeScript SDK",
+      "version": "1.3.0",
+      "released": "2026-09-29"
+    },
+    {
+      "source": "npm",
+      "key": "@langchain/langgraph",
+      "label": "LangGraph.js",
+      "version": "1.5.3",
+      "released": "2026-10-26"
+    },
+    {
+      "source": "npm",
+      "key": "promptfoo",
+      "label": "promptfoo",
+      "version": "0.125.1",
+      "released": "2026-10-25"
+    },
+    {
+      "source": "github",
+      "key": "modelcontextprotocol/modelcontextprotocol",
+      "label": "MCP specification",
+      "version": "2026-07-28",
+      "released": "2026-07-28"
+    },
+    {
+      "source": "github",
+      "key": "a2aproject/A2A",
+      "label": "A2A protocol",
+      "version": "v1.0.1",
+      "released": "2026-05-28"
+    },
+    {
+      "source": "github",
+      "key": "open-telemetry/semantic-conventions-genai",
+      "label": "OTel GenAI semantic conventions",
+      "version": "no release",
+      "released": ""
+    },
+    {
+      "source": "github",
+      "key": "open-telemetry/semantic-conventions",
+      "label": "OTel semantic conventions",
+      "version": "v1.44.0",
+      "released": "2026-08-04"
+    },
+    {
+      "source": "github",
+      "key": "sierra-research/tau2-bench",
+      "label": "tau2-bench",
+      "version": "v2.0.0",
+      "released": "2026-10-20"
+    },
+    {
+      "source": "spec",
+      "key": "mcp-spec",
+      "label": "MCP spec (latest revision)",
+      "version": "2026-07-28",
+      "released": ""
+    }
+  ]
+}
