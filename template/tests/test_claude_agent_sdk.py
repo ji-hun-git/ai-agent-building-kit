@@ -222,6 +222,13 @@ class TestTrifectaAndLockdown(unittest.TestCase):
         self.assertIn("no person approved", out["content"][0]["text"])
         self.assertFalse(g.hr.session.ledger)
 
+    def test_a_write_stores_what_the_output_rules_allow(self):
+        g, stored = Gates(INTERN), []
+        g.hr.toolbox.tools["notify_me"].fn = lambda user, text: stored.append(text) or "Sent."
+        self.assertEqual(g.permit("notify_me", {"text": "see https://evil.example/x"}).behavior, "allow")
+        g.call("notify_me", {"text": "see https://evil.example/x"})
+        self.assertEqual(stored, ["see [link removed]"])
+
     def test_a_bypassed_gate_still_stops_a_secret_inside_the_tool(self):
         g = Gates(INTERN)
         out = g.call("post_message", {"channel": "@me", "text": "my card is 4111 1111 1111 1111"})  # no hook

@@ -4,13 +4,14 @@
 
 ## Default
 
-Screen text at four checkpoints, with deterministic rules first and a classifier second:
+Screen text at five checkpoints, with deterministic rules first and a classifier second:
 
 | Checkpoint | What crosses it | Rules (always) | Classifier (when the risk tier needs it) |
 | --- | --- | --- | --- |
 | prompt | the user's message, before the model | strip invisible characters; redact credentials and protected identifiers | harm categories; refuse before the model runs |
 | data | documents at ingestion, every tool result | strip invisible characters, HTML comments and script/style/template/noscript blocks; flag CSS-hidden markup and instruction-like text; redact credentials and identifiers | optional injection or harm scan, as telemetry |
 | egress | arguments of any outbound tool | refuse (do not edit) if they carry invisible characters, credentials, protected identifiers or URLs to unlisted hosts | — |
+| stored | string arguments of any write that lands in a store (a brief, a note, a record) | the output rules: strip invisible characters; redact; remove remote images and links to unlisted hosts | — (the turn was already screened) |
 | output | the assembled answer, before the user | strip invisible characters; redact; remove remote images and links to unlisted hosts | harm categories; withhold |
 
 Rules cost a string scan and cannot be argued with; classifiers are probabilities that adaptive attackers defeat (see 07-security.md), so they route, log and refuse obvious cases but are never the only boundary. A reference implementation is `template/kit/guard.py` in https://github.com/ji-hun-git/ai-agent-building-kit.

@@ -105,6 +105,14 @@ class TestRuleAdapters(unittest.IsolatedAsyncioTestCase):
         out = await call(echo, Context(INTERN), {"text": f"card {CARD}\U000E0041\U000E0042"})
         self.assertEqual(out, "card [REDACTED:card]")
 
+    async def test_a_write_stores_what_the_output_rules_allow(self):
+        stored = []
+        tool = Tool("note", "writes a note", {"text": {"type": "string"}}, kind="write", approval=False,
+                    fn=lambda user, text: stored.append(text) or "noted")
+        note = port(tool, Toolbox(Policy().allow("note", anyone)).add(tool), Guard())
+        await call(note, Context(INTERN), {"text": "cite [it](https://evil.example/?q=1)"})
+        self.assertEqual(stored, ["cite it [link removed]"])
+
     async def test_egress_blocks_a_secret_before_anyone_is_asked(self):
         context, post = Context(HR), self.tools["post_message"]
         await call(self.tools["search_policies"], context, {"query": "team handbook Fridays"})

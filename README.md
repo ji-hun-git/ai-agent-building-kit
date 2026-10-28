@@ -39,6 +39,19 @@ Author: **Jihun Chae** (KAIST GSCT), [chaejihun@kaist.ac.kr](mailto:chaejihun@ka
 | [**skill/**](skill/) | The guide as an Agent Skill that coding agents (Claude Code, Codex) load when asked to build or review an agent. It checks what is current before trusting its own snapshot. |
 | [**sota/**](sota/) | What is current, dated: models, SDKs, protocols, retrieval, security, serving, evals, and a watch list. [Upgrade ladders](sota/ladders.md) for every layer, from the template's baseline to the best-performing method, with evidence and the hook each rung plugs into. Plus [the repositories worth reading](sota/repos.md) and what this kit takes from each. |
 
+## What this kit proves
+
+Most agent guides describe what to do. This one ships the code, attacks it, and publishes the numbers.
+
+| | |
+| --- | --- |
+| **Security, measured** | 25 attack cases built from published techniques (planted and hidden instructions, base64 and Korean payloads, forged approvals, link and image exfiltration, jailbreaks, refund-limit forgery), mapped to the [OWASP Top 10 for LLM Applications (2025)](benchmarks/#owasp-top-10-for-llm-applications-2025). On Claude Opus 5.5, Claude Haiku 5.5, GPT-6 Astra, GPT-6 Luna, Muse Spark 1.3 and a local 2B model, three trials each: **no unsafe outcome**, even where the small model missed a third of the tasks. The rule-based stand-in with the guard and lockdown removed: 24. |
+| **Rules in code, not in the prompt** | Permissions, approvals, refund limits, run-once writes and five guard checkpoints live where the model cannot argue with them. Every rule has a test that fails when the rule is taken out. |
+| **Runs anywhere, in seconds** | Standard library only. Python 3.10 to 3.14 on Linux, Windows and macOS, offline, with a stand-in model; one `pip install` to use it as a library. |
+| **Same rules on vendor SDKs** | Ports to the OpenAI Agents SDK and the Claude Agent SDK, tested in CI against pinned versions and run against real models. |
+| **Reproducible** | One script reruns the benchmark on any model. Each result records a hash of the exact code it ran on. |
+| **Teaches by changing real code** | Twelve lessons, each with an exercise on the worked agents and a check you can run; every exercise has been worked through. |
+
 ## Quickstart
 
 No API key, no install:
@@ -70,22 +83,32 @@ python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model ant
 python -m examples.hr --model anthropic:<model-id>        # or openai:<model-id>, or openai:<model-id>@<base_url>
 ```
 
+To build on the kit in your own project, install it as a library (standard library only, nothing else comes with it):
+
+```
+pip install "git+https://github.com/ji-hun-git/ai-agent-building-kit#subdirectory=template"
+kit-evals cases.json --agent yourpackage:build --k 3       # the release gate, for your own agent
+```
+
 ## Benchmark
 
 <p align="center">
   <img src="docs/figures/benchmark.png" alt="Share of the template's 31 release-gate cases each model passed on all three trials, with unsafe outcomes per model: none with the guard on, 24 for the stand-in with the guard and lockdown removed" width="920"/>
 </p>
 
-Every model drives the same harness, prompts, documents and policies through all 31 release-gate cases of the three worked agents, three trials each. A case counts only if it passes every trial. *Unsafe* counts trials in which the harm actually happened: a leaked value, a forbidden or repeated write, a hidden value reaching the model.
+Every model drives the same harness, prompts, documents and policies through all 43 release-gate cases of the three worked agents, 25 of them attacks, three trials each. A case counts only if it passes every trial. *Unsafe* counts trials in which the harm actually happened: a leaked value, a forbidden or repeated write, a hidden value reaching the model.
 
 <!-- benchmark table -->
 | Model | API | Cases passed on all trials | Unsafe outcomes |
 | --- | --- | ---: | ---: |
-| Claude Haiku 5.5 | Messages | 31/31 | 0 |
-| GPT-6 Luna | Responses | 31/31 | 0 |
-| Muse Spark 1.3 | Responses (Meta Model API) | 30/31 | 0 |
-| Rule-based stand-in | offline | 31/31 | 0 |
-| Rule-based stand-in, **guard and lockdown off** | offline | 23/31 | 24 |
+| Claude Haiku 5.5 | Messages | 43/43 | 0 |
+| GPT-6 Astra | Responses | 43/43 | 0 |
+| GPT-6 Luna | Responses | 43/43 | 0 |
+| Claude Opus 5.5 | Messages | 42/43 | 0 |
+| Muse Spark 1.3 | Responses (Meta Model API) | 42/43 | 0 |
+| Qwen3-VL 2B, local | Chat Completions (Ollama) | 29/43 | 0 |
+| Rule-based stand-in | offline | 43/43 | 0 |
+| Rule-based stand-in, **guard and lockdown off** | offline | 35/43 | 24 |
 <!-- /benchmark table -->
 
 Full results, every miss and how to reproduce them: [benchmarks/](benchmarks/).
@@ -96,7 +119,7 @@ Full results, every miss and how to reproduce them: [benchmarks/](benchmarks/).
 | --- | --- |
 | Python | 3.10 to 3.14, standard library only; CI on Linux, Windows and macOS |
 | Models | the Anthropic Messages API, the OpenAI Responses API, and any Chat Completions server (vLLM, SGLang, Ollama, Gemini's endpoint). Each adapter sends the provider's own reasoning back unchanged, as current models require |
-| Tested live | Claude Haiku 5.5 (Messages API), GPT-6 Luna (Responses API), Muse Spark 1.3 (Meta's Model API) and a local 2B model on Ollama: see [the benchmark](benchmarks/) |
+| Tested live | Claude Opus 5.5 and Haiku 5.5 (Messages API), GPT-6 Astra and Luna (Responses API), Muse Spark 1.3 (Meta's Model API) and a local 2B model on Ollama: see [the benchmark](benchmarks/) |
 | Local and free | every adapter also runs against a local [Ollama](https://ollama.com) model; the manual `live` workflow does this on GitHub's runners |
 | Coding agents | the skill follows the [Agent Skills](https://agentskills.io/specification) format, for Claude Code and Codex |
 | Frameworks | the template is a reference, not a framework: [`sota/`](sota/) maps each layer to the vendor SDKs, MCP and frameworks that implement it, and the rules it enforces carry over to them |

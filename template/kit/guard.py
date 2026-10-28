@@ -1,10 +1,11 @@
 """Guards: screen what comes in, what is stored, and what goes out.
 
-Text crosses a trust boundary in four places, and each gets a check:
+Text crosses a trust boundary in five places, and each gets a check:
 
     prompt   the user's message, before the model sees it
     data     documents at ingestion and every tool result, before the model sees them
     egress   what an outbound tool is about to send (a post, a message, an email)
+    stored   what a write puts in a store (a brief, a note, a record), before anyone reads it
     output   the answer, before the user sees it
 
 Rules run first and always. They are deterministic, so no prompt can argue with them:
@@ -18,8 +19,8 @@ Rules run first and always. They are deterministic, so no prompt can argue with 
                in a message
     pii        card numbers, resident registration numbers and SSNs are redacted;
                add "email" and "phone" to redact those too
-    exfil      answers and outbound messages only point at https URLs on hosts you
-               list, in any form the rules below parse (markdown, HTML, reference
+    exfil      answers, outbound messages and text a write stores only point at https
+               URLs on hosts you list, in any form the rules below parse (markdown, HTML, reference
                links, bare and protocol-relative URLs), and images never carry a query
                string, because a URL the model writes is a way out of the session;
                with no hosts listed, nothing remote
@@ -233,6 +234,27 @@ class Guard:
     def output(self, text: str) -> Verdict:
         return self._screen(text, "output")
 
+    def stored(self, text: str) -> Verdict:
+        """Text a write puts in a store (a brief, a note, a ticket field), which people read later: the
+        output rules, without a second classifier call on what the turn already screened."""
+        return self._screen(text, "stored")
+
+    def stored_args(self, args):
+        """A write's arguments with every string screened by stored(): (clean arguments, labels)."""
+        labels: set[str] = set()
+
+        def clean(value):
+            if isinstance(value, str):
+                verdict = self.stored(value)
+                labels.update(verdict.labels)
+                return verdict.text
+            if isinstance(value, dict):
+                return {k: clean(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [clean(v) for v in value]
+            return value
+        return clean(args), sorted(labels)
+
     def documents(self, docs: list) -> list:
         """Clean documents once, at ingestion, so the index never holds what the model must not see."""
         return [replace(d, text=self.data(d.text).text) for d in docs]
@@ -266,7 +288,7 @@ class Guard:
             sub(pattern, f"secret.{name}", "redact", f"[REDACTED:{name}]" + ("@" if name == "url_password" else ""))
         for name, (pattern, check) in self.pii.items():
             sub(pattern, f"pii.{name}", "redact", f"[REDACTED:{name}]", check and (lambda m, c=check: c(m.group(0))))
-        if stage in ("output", "egress"):
+        if stage in ("output", "egress", "stored"):
             images = {label.lower() for label in IMAGE_REF.findall(text)}
             sub(REF_DEF, "exfil.link", "strip", lambda m: f"[{m.group(1)}]: [link removed]",
                 lambda m: not self._safe(m.group(2), image=m.group(1).lower() in images))

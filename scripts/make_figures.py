@@ -248,9 +248,9 @@ def skill_workflow() -> Canvas:
 def guard_checkpoints() -> Canvas:
     """template README and guide Step 7: where the guard screens text."""
     c = Canvas(1400, 680)
-    c.header("Four checkpoints: text is screened wherever it crosses a trust boundary",
+    c.header("Five checkpoints: text is screened wherever it crosses a trust boundary",
              "Rules run first and cannot be argued with; a guard model or a moderation API adds what rules cannot see.")
-    A, B, C, D, E = (40, 170), (260, 300), (610, 220), (880, 300), (1230, 130)
+    A, B, C, D, E = (40, 170), (250, 290), (580, 220), (840, 290), (1170, 190)
     r1, r2, r3 = 130, 320, 500
     c.box(*at(A, r1, 100), "User", "a request")
     c.box(*at(B, r1, 100), "Prompt guard", ["strip hidden characters; redact", "secrets and IDs; moderation"], 7, True)
@@ -259,22 +259,27 @@ def guard_checkpoints() -> Canvas:
     c.box(*at(E, r1, 100), "Answer")
     c.box(*at(A, r2, 100), "Documents", "at ingestion")
     c.box(*at(B, r2, 100), "Data guard", ["hidden characters and markup;", "secrets and IDs; injection flag"], 7, True)
-    c.box(*at(C, r2, 100), "Toolbox", ["policy · trifecta", "lockdown · approval · once"], 4)
+    c.box(*at(C, r2, 100), "Toolbox", ["policy, trifecta, lockdown,", "approval, run once"], 4)
     c.box(*at(D, r2, 100), "Egress guard", ["refuses hidden text, secrets,", "IDs and unlisted URLs"], 7, True)
-    c.box(*at(B, r3, 80), "Read tools", "search · HR system · files")
-    c.box(*at(D, r3, 80), "Outbound tools", "post · email · fetch")
+    c.box(*at(E, r2, 100), "Outbound tools", "post, email, fetch")
+    c.box(*at(B, r3, 80), "Read tools", "search, HR system, files")
+    c.box(*at(D, r3, 80), "Stored guard", ["what a write stores: the", "answer's rules, no classifier"], 7, True)
+    c.box(*at(E, r3, 80), "Write tools", "briefs, notes, records")
     for (x1, w1), (x2, _) in [(A, B), (B, C), (C, D), (D, E)]:
         c.arrow([(x1 + w1, r1 + 50), (x2 - 1, r1 + 50)])
     c.arrow([(A[0] + A[1], r2 + 50), (B[0] - 1, r2 + 50)])
     c.arrow([(C[0] + C[1], r2 + 50), (D[0] - 1, r2 + 50)])
-    c.text(C[0] + C[1] + 25, r2 + 40, "out", 13, color=MUTED)
+    c.arrow([(D[0] + D[1], r2 + 50), (E[0] - 1, r2 + 50)])
+    c.text(C[0] + C[1] + 20, r2 + 40, "out", 13, color=MUTED)
     c.arrow([(760, r1 + 100), (760, r2 - 1)])
     c.text(770, r1 + 145, "tool calls", 13, color=MUTED, anchor="start")
     c.arrow([(520, r2), (520, 280), (690, 280), (690, r1 + 101)])
     c.text(605, 272, "cleaned results", 13, color=MUTED)
-    c.arrow([(700, r2 + 100), (700, 460), (500, 460), (500, r3 - 1)])
+    c.arrow([(660, r2 + 100), (660, 460), (480, 460), (480, r3 - 1)])
     c.arrow([(340, r3), (340, r2 + 101)])
-    c.arrow([(D[0] + D[1] / 2, r2 + 100), (D[0] + D[1] / 2, r3 - 1)])
+    c.arrow([(784, r2 + 100), (784, r3 + 40), (D[0] - 1, r3 + 40)])
+    c.text(794, r3 + 30, "writes", 13, color=MUTED, anchor="start")
+    c.arrow([(D[0] + D[1], r3 + 40), (E[0] - 1, r3 + 40)])
     c.text(40, 630, "What the rules guarantee holds whatever the model does. A classifier is one more layer, never the boundary.",
            15, color=BODY, anchor="start")
     return c
@@ -423,6 +428,56 @@ def benchmark() -> Canvas:
     return c
 
 
+def red_team() -> Canvas:
+    """benchmarks/: attack trials and unsafe outcomes per OWASP Top 10 risk (2025)."""
+    import json
+    results = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((OUT.parent.parent / "benchmarks" / "results").glob("*.json"))]
+    risks = [("LLM01", "Prompt injection"), ("LLM02", "Sensitive information disclosure"), ("LLM03", "Supply chain"),
+             ("LLM04", "Data and model poisoning"), ("LLM05", "Improper output handling"), ("LLM06", "Excessive agency"),
+             ("LLM07", "System prompt leakage"), ("LLM08", "Vector and embedding weaknesses"), ("LLM09", "Misinformation"),
+             ("LLM10", "Unbounded consumption")]
+    held = {"LLM03": "pinned SDK versions, live freshness check", "LLM04": "ACL-checked document loading, no training",
+            "LLM09": "citations and abstention, regression cases", "LLM10": "step limit per turn, token caps"}
+    on = [r for r in results if r["guard"]]
+    off = [r for r in results if not r["guard"]]
+
+    def tally(runs, code):
+        rows = [c for r in runs for c in r["cases"] if c.get("attack") and code in c["attack"]["owasp"]]
+        return sum(c["unsafe"] for c in rows), sum(c["trials"] for c in rows), len({(c["example"], c["id"]) for c in rows})
+
+    attacks = {(c["example"], c["id"]) for r in on for c in r["cases"] if c.get("attack")}
+    bad_on = sum(c["unsafe"] for r in on for c in r["cases"] if c.get("attack"))
+    trials_on = sum(c["trials"] for r in on for c in r["cases"] if c.get("attack"))
+    top_trials = max(tally(on, code)[1] for code, _ in risks) or 1
+    x0, x1, top, step = 420, 760, 168, 50
+    c = Canvas(1120, top + step * len(risks) + 96)
+    c.header(f"Red team: {bad_on} unsafe outcomes in {trials_on:,} attack trials",
+             f"{len(attacks)} attack cases mapped to the OWASP Top 10 for LLM Applications (2025), "
+             f"{len(on)} configuration{'' if len(on) == 1 else 's'} with the guard on, three trials each.")
+    for x, label in ((x0, "Attack trials, guard on"), (930, "Cases"), (1080, "Unsafe")):
+        c.text(x, top - 22, label, 14, color=MUTED, anchor="start" if x == x0 else "end")
+    for i, (code, name) in enumerate(risks):
+        mid = top + i * step + step / 2
+        bad, trials, cases = tally(on, code)
+        c.text(40, mid + 6, code, 16, 700, INK if cases else MUTED, anchor="start")
+        c.text(112, mid + 6, name, 16, 400, INK if cases else MUTED, anchor="start")
+        if cases:
+            c.rect(x0, mid - 8, max((x1 - x0) * trials / top_trials, 16), 16, BLUE, BLUE, 0, 8)
+            c.text(x0 + (x1 - x0) * trials / top_trials + 12, mid + 6, f"{trials:,}", 15, 600, anchor="start")
+            c.text(930, mid + 6, str(cases), 16, color=BODY, anchor="end")
+            c.text(1080, mid + 6, str(bad), 18, 700, RED if bad else INK, anchor="end")
+        else:
+            c.text(x0, mid + 6, f"not attacked here; held by {held[code]}", 15, color=MUTED, anchor="start")
+        if i:
+            c.line(40, mid - step / 2, 1080, mid - step / 2, GRID)
+    off_bad = sum(c["unsafe"] for r in off for c in r["cases"] if c.get("attack"))
+    off_trials = sum(c["trials"] for r in off for c in r["cases"] if c.get("attack"))
+    note = (f"With the guard and lockdown removed, the rule-based stand-in had {off_bad} unsafe outcomes in {off_trials} "
+            "attack trials." if off else "")
+    c.text(40, top + step * len(risks) + 52, note, 15, color=MUTED, anchor="start")
+    return c
+
+
 def social_preview() -> Canvas:
     """The repository's social card (GitHub: Settings, then Social preview)."""
     c = Canvas(1280, 640)
@@ -439,7 +494,7 @@ def social_preview() -> Canvas:
 
 FIGURES = {"hero": hero, "ontology-planes": ontology_planes, "skill-workflow": skill_workflow,
            "guard-checkpoints": guard_checkpoints, "skill-evals": skill_evals, "retrieval-failures": retrieval_failures,
-           "benchmark": benchmark, "social-preview": social_preview}
+           "benchmark": benchmark, "red-team": red_team, "social-preview": social_preview}
 
 
 # ---------------------------------------------------------------- rendering

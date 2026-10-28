@@ -100,7 +100,7 @@ This register records techniques and practitioner workflows that were reviewed f
 
 | Technique | Verdict | Condition or reason | Evidence | Applied in |
 | --- | --- | --- | --- | --- |
-| Rules first at four checkpoints (prompt, data, egress, output) | ADOPT | A string scan, no model, no network | — | guards-and-moderation |
+| Rules first at five checkpoints (prompt, data, egress, stored, output) | ADOPT | A string scan, no model, no network | — | guards-and-moderation |
 | Qwen3Guard-Gen as the default open guard | ADOPT | Apache-2.0, 119 languages including Korean | 8B English prompt F1 90.0 against 75.9 for Llama Guard 4 (vendor-run, [arXiv 2510.14276](https://arxiv.org/abs/2510.14276)) | guards-and-moderation |
 | Kanana Safeguard | ADOPT-WHEN the product is Korean-only | Korean-only training; its chat-endpoint format is unverified | F1 0.946 on Kakao's Korean test set (vendor-run) | guards-and-moderation |
 | Policy-following guards (gpt-oss-safeguard, Shieldstral) | ADOPT-WHEN your policy is not the stock taxonomy | Reasoning on every call is slow; route only ambiguous cases to them | gpt-oss-safeguard-20b OpenAI Moderation F1 82.9 ([report](https://cdn.openai.com/pdf/08b7dee4-8bc6-4955-a219-7793fb69090c/Technical_report__Research_Preview_of_gpt_oss_safeguard.pdf)) | guards-and-moderation |

@@ -13,7 +13,7 @@ You need Python 3.10 or newer and git. Nothing to install from PyPI until lesson
 | 4 | [Acting as the user](#4-acting-as-the-user) | write a permission rule over arguments |
 | 5 | [Retrieval that cites and abstains](#5-retrieval-that-cites-and-abstains) | ground answers in your documents |
 | 6 | [Prompt injection](#6-prompt-injection) | show why a fooled model still cannot leak |
-| 7 | [The guard](#7-the-guard) | screen prompts, data, messages and answers |
+| 7 | [The guard](#7-the-guard) | screen prompts, data, messages, stored text and answers |
 | 8 | [Evals and the release gate](#8-evals-and-the-release-gate) | make a prompt edit fail the build |
 | 9 | [A real model, free](#9-a-real-model-free) | tell a model's mistakes from the harness's |
 | 10 | [Several agents](#10-several-agents) | split work across agents without losing control |
@@ -92,7 +92,7 @@ python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3
 
 ### 7. The guard
 
-**Read** [`kit/guard.py`](../template/kit/guard.py): the four checkpoints and what each rule promises.
+**Read** [`kit/guard.py`](../template/kit/guard.py): the five checkpoints and what each rule promises.
 
 **Try** Your company issues tokens like `acme_` followed by 32 lowercase letters and digits. Add that format to `SECRETS`, then a test in `tests/test_guard.py` that it is redacted in a prompt and refused in an outbound message. Build the token in the test from pieces, so the repository never contains one.
 

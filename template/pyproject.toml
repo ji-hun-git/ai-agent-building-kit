@@ -1,15 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "agent-kit-template"
-version = "2026.10.28"
-description = "A small, dependency-free harness for production AI agents: permissions, approvals, retrieval, traces, evals."
+name = "ai-agent-building-kit"
+version = "2026.10.29"
+description = "A small, dependency-free harness for production AI agents: permissions, approvals, a guard, retrieval, traces, evals."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Jihun Chae", email = "chaejihun@kaist.ac.kr" }]
 dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Security",
+]
+
+[project.scripts]
+kit-evals = "kit.evals:main"
 
 [project.urls]
 Repository = "https://github.com/ji-hun-git/ai-agent-building-kit"
+Benchmark = "https://github.com/ji-hun-git/ai-agent-building-kit/tree/main/benchmarks"
 
 [tool.setuptools]
 packages = ["kit"]

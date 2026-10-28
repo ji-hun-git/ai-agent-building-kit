@@ -161,6 +161,8 @@ class Conversation:
         tool = self.toolbox.tools.get(name)
         if tool and (blocked := self.egress(tool, args)):  # held here too, if the hook was bypassed
             return Result(blocked, True)
+        if self.guard and tool and tool.kind != "read":  # what a write stores, people read later
+            call = Call("", name, self.guard.stored_args(args)[0])
         try:
             result = self.toolbox.execute(call, self.user, self.session, approved=approved)
         except NeedsApproval as e:  # the gates were bypassed (an allow rule, bypassPermissions): fail closed

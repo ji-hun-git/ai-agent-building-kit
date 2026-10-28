@@ -145,6 +145,11 @@ class Agent:
                 result = Result(f"Blocked: this message would carry {rules} out of the session. "
                                 "Do not retry; tell the user what was blocked.", True)
             else:
+                if self.guard and tool and tool.kind != "read":  # what a write stores, people read later
+                    args, labels = self.guard.stored_args(call.args)
+                    if labels:
+                        span["guard.stored"] = labels
+                        call = Call(call.id, call.name, args)
                 result = self.toolbox.execute(call, user, session, approved=approved)
                 span["tool.ran"] = result.ran
                 if self.guard:  # error messages too: a failing tool can echo what it read

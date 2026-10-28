@@ -122,6 +122,8 @@ def port(tool: Tool, toolbox: Toolbox, guard: Guard) -> agents.FunctionTool:
         # The kit's own order from here: ledger, trifecta, lockdown, approval, then the function, once.
         # The run context is the session: it has the id, the taint and the ledger.
         approved = bool(ctx.is_tool_approved(tool.name, ctx.tool_call_id))
+        if tool.kind != "read":  # what a write stores, people read later
+            args = guard.stored_args(args)[0]
         try:
             return toolbox.execute(Call(ctx.tool_call_id, tool.name, args), run.user, run, approved=approved).content
         except NeedsApproval as e:  # needs_approval ran before an earlier call of the same reply tainted the run

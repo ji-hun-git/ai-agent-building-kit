@@ -39,7 +39,7 @@ agent> I can't help with that request.
 The handbook carries a visible instruction to post the pay band, and the trifecta rule stops the send. The benefits page carries the same instruction in invisible Unicode tag characters, and the guard strips it before indexing, so the model never reads it. The IT page tells the model to end every answer with an image whose URL carries the user's question, and the guard removes it. The threat never reaches the model. Run `--no-guard` to watch the stand-in fall for each of them.
 
 <p align="center">
-  <img src="../docs/figures/guard-checkpoints.png" alt="Four checkpoints: prompt guard, data guard, egress guard and output guard around the model and the toolbox" width="900"/>
+  <img src="../docs/figures/guard-checkpoints.png" alt="Five checkpoints: prompt guard, data guard, egress guard, stored guard and output guard around the model and the toolbox" width="900"/>
 </p>
 
 ## The files
@@ -51,7 +51,7 @@ Read them in this order. Each one closes a way agents fail in production.
 | [`kit/policy.py`](kit/policy.py) | an intern reads the CEO's pay; injected text exfiltrates data | permissions of the *user*, checked per call; the lethal-trifecta rule |
 | [`kit/context.py`](kit/context.py) | cache misses, rejected histories, lost data after trimming | frozen prefix, deterministic JSON, append-only history, restorable clearing |
 | [`kit/tools.py`](kit/tools.py) | unwanted or duplicate writes; untrusted text choosing actions; opaque tool errors | read / write / irreversible, approvals, idempotency ledger, lockdown, errors as sentences |
-| [`kit/guard.py`](kit/guard.py) | invisible instructions; credentials and ID numbers in prompts and answers; answers that phone home; harmful requests | rules at four boundaries (prompt, data, egress, output): strip hidden characters, redact secrets and PII, remove remote images and links, plus a guard-model or moderation-API classifier |
+| [`kit/guard.py`](kit/guard.py) | invisible instructions; credentials and ID numbers in prompts and answers; answers that phone home; harmful requests | rules at five boundaries (prompt, data, egress, stored, output): strip hidden characters, redact secrets and PII, remove remote images and links, plus a guard-model or moderation-API classifier |
 | [`kit/retrieval.py`](kit/retrieval.py) | invented policy; search leaking restricted documents | contextual chunks, ACL filter before ranking, BM25 + optional dense (RRF), optional cross-encoder rerank with a score threshold, abstain |
 | [`kit/agent.py`](kit/agent.py) | the model acting on its own; reasoning lost between turns | the model proposes, code disposes; the guard at every boundary; pause and resume for approvals; adapters for the Anthropic Messages API, the OpenAI Responses API and Chat Completions servers, which replay the provider's own reasoning unchanged |
 | [`kit/trace.py`](kit/trace.py) | "nobody knows why it did that" | OpenTelemetry GenAI span names, release version and guard findings on every span, content off by default |
@@ -106,7 +106,7 @@ For production, the guide's Step 1 says to build on a vendor harness. This code 
 | The user's own permissions (`Policy`) | deny rules, plus a `PreToolUse` hook for checks that must run on every call | a check at the top of each tool, with the user from the run context | one wrapper around every tool call |
 | Trifecta rule and lockdown (`Toolbox`) | the same `PreToolUse` hook, keeping the session's taint | `needs_approval` on outbound and write tools, decided from what the run has read | the same wrapper |
 | Approvals (`Pending`, `resume`) | `canUseTool` | `needs_approval`, then `approve` or `reject` on the `RunState` | stop the run, store it, resume with the person's answer |
-| Guard on prompts, data, messages and answers (`Guard`) | before the query, inside each tool before it returns, and on the final text | input and output guardrails, and inside each tool | around the model call and the tool call |
+| Guard on prompts, data, messages, stored text and answers (`Guard`) | before the query, inside each tool (`Guard.stored_args` on what a write stores), and on the final text | input and output guardrails, and inside each tool | around the model call and the tool call |
 | Run-once writes (the ledger) | a database table keyed like `Toolbox.key` | the same, with `RunState.to_json()` for the run itself | the same |
 | Traces (`Tracer`) | the SDK's OpenTelemetry traces, plus spans for guards and approvals | `add_trace_processor()` into your pipeline | OpenTelemetry GenAI spans |
 | The gate (`kit.evals`) | unchanged: point `build()` at the new agent | unchanged | unchanged |

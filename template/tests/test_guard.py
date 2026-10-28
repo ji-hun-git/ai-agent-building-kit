@@ -95,6 +95,17 @@ class TestRules(unittest.TestCase):
         self.assertFalse(g.data("bad").blocked)
         self.assertTrue(Guard(classify=flag, classify_data=True).data("bad").blocked)
 
+    def test_stored_text_follows_the_output_rules_without_a_second_classifier_call(self):
+        calls = []
+        g = Guard(classify=lambda text, stage: calls.append(stage) or [])
+        text = "Brief. See [source](https://evil.example/n?q=1) ![p](https://evil.example/p.gif) card 4111 1111 1111 1111"
+        args, labels = g.stored_args({"title": "t", "text": text, "tags": ["https://evil.example/x"], "n": 3})
+        self.assertEqual(args["text"], "Brief. See source [link removed] [image removed] card [REDACTED:card]")
+        self.assertEqual(args["tags"], ["[link removed]"])
+        self.assertEqual(args["n"], 3)
+        self.assertIn("exfil.link:strip", labels)
+        self.assertEqual(calls, [])
+
 
 class TestClassifiers(unittest.TestCase):
     def test_guard_model_replies_are_parsed(self):
@@ -140,6 +151,16 @@ class TestGuardedAgent(unittest.TestCase):
             Tool("note", "writes a note", {"text": {"type": "string"}}, kind="write", approval=False,
                  fn=lambda user, text="": "noted"))
         return Agent(Scripted(replies), "sys", tb, guard=guard or Guard())
+
+    def test_a_write_stores_what_the_output_rules_allow(self):
+        stored = []
+        agent = self.agent([Reply(calls=[Call("1", "note", {"text": "cite [it](https://evil.example/?q=pay)"})]),
+                            Reply("Saved.")])
+        agent.toolbox.tools["note"].fn = lambda user, text="": stored.append(text) or "noted"
+        session = agent.start(ALICE)
+        agent.run(session, ALICE, "Write a note.")
+        self.assertEqual(stored, ["cite it [link removed]"])
+        self.assertTrue(any("guard.stored" in s for s in agent.tracer.spans))
 
     def test_every_boundary_is_screened(self):
         agent = self.agent([

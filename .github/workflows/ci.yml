@@ -73,6 +73,20 @@ jobs:
           python scripts/benchmark.py run --stand-in --no-guard --name "Rule-based stand-in" --k 1 --out "$RUNNER_TEMP/bench"
           python scripts/benchmark.py hash
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: install the kit and use it from outside the repository
+        run: |
+          pip install ./template
+          cd "$RUNNER_TEMP"
+          python -I -c "import kit, importlib.metadata as m; from kit import Agent, Guard, Toolbox; print(m.version('ai-agent-building-kit'), kit.__file__)"
+          kit-evals --help
+
   lint:
     runs-on: ubuntu-latest
     steps:

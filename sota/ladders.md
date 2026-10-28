@@ -68,10 +68,10 @@ Not rungs. **Prompt-level defenses** (delimiters, spotlighting, sandwiching, "ig
 
 ## Moderation of prompts, data and outputs
 
-Screening has four checkpoints, and the template's `Guard` runs at all of them: the user's prompt before the model sees it, documents at ingestion and every tool result, anything an outbound tool is about to send, and the answer before the user sees it. Rules run first because they cost a string scan and cannot be argued with; classifiers add what rules cannot see (harassment, self-harm, your own content policy). Classifiers are probabilities, and the injection ladder above shows what adaptive attackers do to probabilities: route on them, log them, never make them the only boundary.
+Screening has five checkpoints, and the template's `Guard` runs at all of them: the user's prompt before the model sees it, documents at ingestion and every tool result, anything an outbound tool is about to send, anything a write puts in a store, and the answer before the user sees it. Rules run first because they cost a string scan and cannot be argued with; classifiers add what rules cannot see (harassment, self-harm, your own content policy). Classifiers are probabilities, and the injection ladder above shows what adaptive attackers do to probabilities: route on them, log them, never make them the only boundary.
 
 <p align="center">
-  <img src="../docs/figures/guard-checkpoints.png" alt="Four checkpoints: prompt guard, data guard, egress guard and output guard around the model and the toolbox" width="900"/>
+  <img src="../docs/figures/guard-checkpoints.png" alt="Five checkpoints: prompt guard, data guard, egress guard, stored guard and output guard around the model and the toolbox" width="900"/>
 </p>
 
 | # | Rung | What it adds | Evidence | Climb when | Template |
