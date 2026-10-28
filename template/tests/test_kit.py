@@ -343,6 +343,16 @@ class TestEdges(unittest.TestCase):
                 {"role": "assistant", "content": "", "calls": [{"id": "a", "name": "t", "args": {}}]}]
         self.assertEqual(_to_openai(msgs)[1]["content"], "")  # never null: some servers reject it
 
+    def test_a_cut_answer_says_so(self):
+        cut = {"content": [{"type": "thinking", "thinking": "", "signature": "s"}], "stop_reason": "max_tokens"}
+        with mock.patch("kit.agent.post", return_value=cut):
+            agent = Agent(Anthropic("m", api_key="k"), "sys", Toolbox(Policy()))
+            self.assertIn("token limit", agent.run(agent.start(ALICE), ALICE, "hi"))
+        partial = {"choices": [{"message": {"content": "The answer is"}, "finish_reason": "length"}]}
+        with mock.patch("kit.agent.post", return_value=partial):
+            agent = Agent(OpenAICompatible("m", "http://x/v1"), "sys", Toolbox(Policy()))
+            self.assertEqual(agent.run(agent.start(ALICE), ALICE, "hi"), "The answer is [cut off at the token limit]")
+
     def test_openai_key_goes_only_to_openai(self):
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "openai-key", "LLM_API_KEY": "local-key"}):
             self.assertEqual(OpenAICompatible("m").api_key, "openai-key")

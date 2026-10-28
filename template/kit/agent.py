@@ -40,6 +40,7 @@ class Reply:
     usage: dict = field(default_factory=dict)
     raw: list = field(default_factory=list)  # the provider's own output, sent back unchanged
     via: str = ""                            # the adapter that produced `raw`
+    cut: bool = False                        # the answer stopped at the token limit
 
 
 @dataclass
@@ -110,7 +111,10 @@ class Agent:
                 span.update({f"gen_ai.usage.{k}": v for k, v in reply.usage.items()})
                 span["content.output"] = reply.text
                 text = reply.text
-                if not reply.calls and not text.strip():  # say so, rather than show the user nothing
+                if not reply.calls and reply.cut:  # say so, rather than pass a cut answer off as whole
+                    text = (f"{text} [cut off at the token limit]" if text.strip() else
+                            "The answer hit its token limit before any text; raise max_tokens and ask again.")
+                elif not reply.calls and not text.strip():
                     text = "The model returned an empty answer. Please ask again."
                 if self.guard and not reply.calls:  # the final answer, before the user sees it
                     verdict = self.guard.output(text)
@@ -222,7 +226,8 @@ class Anthropic:
         if out.get("stop_reason") == "refusal" and not text:
             text = "I can't help with that request."
         calls = [Call(b["id"], b["name"], b["input"]) for b in blocks if b["type"] == "tool_use"]
-        return Reply(text, calls, out.get("usage", {}), raw=blocks, via="anthropic")
+        return Reply(text, calls, out.get("usage", {}), raw=blocks, via="anthropic",
+                     cut=out.get("stop_reason") == "max_tokens")
 
 
 def _to_anthropic(messages) -> list[dict]:
@@ -271,7 +276,8 @@ class OpenAIResponses:
         text = "".join(part.get("text", "") for item in items if item["type"] == "message"
                        for part in item.get("content", []) if part.get("type") == "output_text")
         calls = [Call(i["call_id"], i["name"], _args(i.get("arguments"))) for i in items if i["type"] == "function_call"]
-        return Reply(text, calls, out.get("usage", {}), raw=items, via="openai-responses")
+        cut = (out.get("incomplete_details") or {}).get("reason") == "max_output_tokens"
+        return Reply(text, calls, out.get("usage", {}), raw=items, via="openai-responses", cut=cut)
 
 
 def _to_responses(messages) -> list[dict]:
@@ -312,9 +318,10 @@ class OpenAICompatible:
             body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
                                                                "parameters": t["input_schema"]}} for t in tools]
         out = post(f"{self.base_url}/chat/completions", {"authorization": f"Bearer {self.api_key}"}, body)
-        msg = out["choices"][0]["message"]
+        choice = out["choices"][0]
+        msg = choice["message"]
         calls = [Call(c["id"], c["function"]["name"], _args(c["function"]["arguments"])) for c in msg.get("tool_calls") or []]
-        return Reply(msg.get("content") or "", calls, out.get("usage", {}))
+        return Reply(msg.get("content") or "", calls, out.get("usage", {}), cut=choice.get("finish_reason") == "length")
 
 
 def _to_openai(messages) -> list[dict]:

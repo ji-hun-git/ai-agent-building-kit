@@ -27,7 +27,7 @@ jobs:
           curl -fsSL https://ollama.com/install.sh | sh
           (ollama serve > /tmp/ollama.log 2>&1 &)
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
-          ollama pull "$MODEL"
+          ollama pull "$MODEL" > /dev/null 2>&1 && ollama list
       - name: gate through each adapter
         working-directory: template
         run: |
@@ -35,7 +35,7 @@ jobs:
           for api in openai responses anthropic; do
             spec="$api:$MODEL@http://127.0.0.1:11434/v1"
             echo "### $spec" >> "$GITHUB_STEP_SUMMARY"
-            python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model "$spec" --k 1 --max-tokens 1024 | tee out.txt || true
+            python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model "$spec" --k 1 --max-tokens 4096 | tee out.txt || true
             { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             if grep -q "model call failed" out.txt; then failed=1; fi
           done
