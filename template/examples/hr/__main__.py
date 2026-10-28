@@ -6,6 +6,7 @@
     python -m examples.hr --model openai:<model-id>        # Responses API; needs OPENAI_API_KEY
     python -m examples.hr --model openai:<model-id>@http://localhost:8000/v1   # Chat Completions: vLLM, SGLang, Ollama (LLM_API_KEY)
     python -m examples.hr --model anthropic:<model-id> --effort low           # reasoning effort, where supported
+    python -m examples.hr --model anthropic:qwen3-vl:2b@http://127.0.0.1:11434/v1  # any adapter against a local Ollama
 
 Add --trace trace.jsonl to write spans, and --no-guard to see what the guard and lockdown stop. Current model ids: run
 skill/building-ai-agents/scripts/check_freshness.py or see sota/README.md.
@@ -33,10 +34,10 @@ TOUR = [
 ]
 
 
-def make_model(spec: str | None, effort: str | None = None):
+def make_model(spec: str | None, effort: str | None = None, max_tokens: int | None = None):
     if not spec:
         return None, "stand-in"
-    return model_from(spec, effort), spec.split(":", 1)[1].split("@")[0]
+    return model_from(spec, effort, max_tokens), spec.split(":", 1)[1].split("@")[0]
 
 
 def turn(agent, session, user, text, ask) -> None:
@@ -57,8 +58,9 @@ def turn_text(agent, session, user, text, ask) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", help="anthropic:<id> | openai:<id>[@base_url]")
+    ap.add_argument("--model", help="anthropic:<id>[@base_url] | openai:<id>[@base_url] | responses:<id>@base_url")
     ap.add_argument("--effort", help="reasoning effort, e.g. low, medium, high (model-dependent)")
+    ap.add_argument("--max-tokens", type=int, help="cap on each answer, reasoning included")
     ap.add_argument("--chat", action="store_true")
     ap.add_argument("--user", default="intern", choices=USERS)
     ap.add_argument("--trace")
@@ -66,7 +68,7 @@ def main() -> None:
     args = ap.parse_args()
 
     try:
-        model, model_id = make_model(args.model, args.effort)
+        model, model_id = make_model(args.model, args.effort, args.max_tokens)
     except (ValueError, APIError) as e:
         raise SystemExit(f"error: {e}") from None
     tracer = Tracer(args.trace) if args.trace else None

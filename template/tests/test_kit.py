@@ -348,6 +348,26 @@ class TestEdges(unittest.TestCase):
             self.assertEqual(OpenAICompatible("m").api_key, "openai-key")
             self.assertEqual(OpenAICompatible("m", "http://localhost:11434/v1").api_key, "local-key")
             self.assertEqual(OpenAICompatible("m", "https://api.openai.com.evil.example/v1").api_key, "local-key")
+            self.assertEqual(Embeddings("m", "http://localhost:11434/v1").api_key, "local-key")
+            self.assertEqual(Anthropic("m", url="http://localhost:11434/v1/messages").api_key, "local-key")
+            self.assertEqual(OpenAIResponses("m", url="http://localhost:11434/v1/responses").api_key, "local-key")
+
+    def test_specs_reach_every_adapter(self):
+        from kit import model_from
+        self.assertEqual(model_from("anthropic:m@http://h/v1").url, "http://h/v1/messages")
+        self.assertEqual(model_from("responses:m@http://h/v1/").url, "http://h/v1/responses")
+        self.assertIsInstance(model_from("openai:m@http://h/v1"), OpenAICompatible)
+        for bad in ("responses:m", "anthropic:", "gemini:m"):
+            with self.assertRaises(ValueError):
+                model_from(bad)
+
+    def test_embedders_get_their_prefixes(self):
+        seen = []
+        with mock.patch("kit.retrieval.post", side_effect=lambda url, h, body: seen.append(body["input"]) or
+                        {"data": [{"embedding": [1.0, 0.0]}]}):
+            e = Embeddings("m", "http://x/v1", query_prefix="search_query: ", document_prefix="search_document: ")
+            Index([Doc("d", "T", "# T\n\n## H\n\nleave")], embed=e).search("leave", ALICE)
+        self.assertTrue(seen[0].startswith("search_document: ") and seen[1] == "search_query: leave")
 
     def test_retrieval_handles_particles_paraphrases_and_permissions(self):
         ko = Index([Doc("l", "연차 규정", "# 연차 규정\n\n## 연차\n\n연차는 매년 15일입니다.")])
@@ -376,6 +396,14 @@ class TestErrors(unittest.TestCase):
             post("http://x", {}, {})
         self.assertIn("404", str(caught.exception))
         self.assertIn("model not found", str(caught.exception))
+        for failure in (TimeoutError("timed out"), ConnectionResetError("reset")):
+            with mock.patch("urllib.request.urlopen", side_effect=failure), self.assertRaises(APIError):
+                post("http://x", {}, {})
+        page = mock.MagicMock()
+        page.__enter__.return_value = io.BytesIO(b"<html>bad gateway</html>")
+        with mock.patch("urllib.request.urlopen", return_value=page), self.assertRaises(APIError) as caught:
+            post("http://x", {}, {})
+        self.assertIn("not JSON", str(caught.exception))
         with mock.patch.dict(os.environ, {}, clear=True), self.assertRaises(APIError) as caught:
             key("ANTHROPIC_API_KEY")
         self.assertIn("ANTHROPIC_API_KEY", str(caught.exception))

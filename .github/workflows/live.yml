@@ -1,0 +1,42 @@
+name: live
+
+# Manual: the HR gate against a real open model served by Ollama on the runner, through each of the
+# three adapters (Chat Completions, Responses, Messages). It checks the plumbing (requests, tool
+# calls, approvals, reasoning replay), so the job fails only when a model call fails. A small model
+# missing cases is expected; every case result goes to the run summary.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Ollama model with tool support
+        default: qwen3:0.6b
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MODEL: ${{ inputs.model }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/ollama.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
+          ollama pull "$MODEL"
+      - name: gate through each adapter
+        working-directory: template
+        run: |
+          failed=0
+          for api in openai responses anthropic; do
+            spec="$api:$MODEL@http://127.0.0.1:11434/v1"
+            echo "### $spec" >> "$GITHUB_STEP_SUMMARY"
+            python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model "$spec" --k 1 --max-tokens 1024 | tee out.txt || true
+            { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            if grep -q "model call failed" out.txt; then failed=1; fi
+          done
+          exit $failed

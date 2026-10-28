@@ -46,6 +46,16 @@ python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model ant
 python -m examples.hr --model anthropic:<model-id>        # or openai:<model-id>, or openai:<model-id>@<base_url>
 ```
 
+## Compatibility
+
+| | |
+| --- | --- |
+| Python | 3.10 to 3.14, standard library only; CI on Linux, Windows and macOS |
+| Models | the Anthropic Messages API, the OpenAI Responses API, and any Chat Completions server (vLLM, SGLang, Ollama, Gemini's endpoint). Each adapter sends the provider's own reasoning back unchanged, as current models require |
+| Local and free | every adapter also runs against a local [Ollama](https://ollama.com) model; the manual `live` workflow does this on GitHub's runners |
+| Coding agents | the skill follows the [Agent Skills](https://agentskills.io/specification) format, for Claude Code and Codex |
+| Frameworks | the template is a reference, not a framework: [`sota/`](sota/) maps each layer to the vendor SDKs, MCP and frameworks that implement it, and the rules it enforces carry over to them |
+
 ## The ten layers
 
 The numbers in the figure above are the rows of this table.

@@ -28,7 +28,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from collections.abc import Callable
 
-from .net import post
+from .net import key_for, post
 from .policy import User
 from .tools import Tool
 
@@ -139,7 +139,7 @@ class Index:
         scores = {i: self._bm25(q, i) for i in visible}
         lexical = sorted((i for i in visible if scores[i] > 0), key=lambda i: -scores[i])
         if self.embed:  # the dense leg can vouch for a chunk that shares no word with the query
-            qv = self.embed(query)
+            qv = getattr(self.embed, "query", self.embed)(query)
             similarity = {i: _cosine(qv, self.vectors[i]) for i in visible}
             dense = sorted((i for i in visible if self.min_similarity is None or similarity[i] >= self.min_similarity),
                            key=lambda i: -similarity[i])
@@ -170,13 +170,27 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 class Embeddings:
-    """OpenAI-compatible /embeddings: OpenAI, and self-hosted vLLM, TEI or Ollama via base_url."""
+    """OpenAI-compatible /embeddings: OpenAI, and self-hosted vLLM, TEI or Ollama via base_url.
 
-    def __init__(self, model: str, base_url: str = "https://api.openai.com/v1", api_key: str | None = None):
+    Many embedders expect a task prefix or instruction on queries, documents or both (nomic:
+    "search_query: " and "search_document: "; Qwen3-Embedding: an instruction on queries only).
+    Set the ones your model card asks for; the index embeds documents with __call__ and the
+    question with query()."""
+
+    def __init__(self, model: str, base_url: str = "https://api.openai.com/v1", api_key: str | None = None,
+                 query_prefix: str = "", document_prefix: str = ""):
         self.model, self.base_url = model, base_url.rstrip("/")
-        self.api_key = api_key or os.environ.get("EMBEDDINGS_API_KEY") or os.environ.get("OPENAI_API_KEY", "none")
+        self.query_prefix, self.document_prefix = query_prefix, document_prefix
+        self.api_key = api_key or os.environ.get("EMBEDDINGS_API_KEY") or key_for(self.base_url, "api.openai.com",
+                                                                                   "OPENAI_API_KEY")
 
     def __call__(self, text: str) -> list[float]:
+        return self._embed(self.document_prefix + text)
+
+    def query(self, text: str) -> list[float]:
+        return self._embed(self.query_prefix + text)
+
+    def _embed(self, text: str) -> list[float]:
         out = post(f"{self.base_url}/embeddings", {"authorization": f"Bearer {self.api_key}"},
                    {"model": self.model, "input": text})
         return out["data"][0]["embedding"]

@@ -6,10 +6,17 @@ on:
 
 jobs:
   template:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        os: [ubuntu-latest]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: windows-latest
+            python: "3.13"
+          - os: macos-latest
+            python: "3.13"
     defaults:
       run:
         working-directory: template
@@ -24,3 +31,10 @@ jobs:
         run: python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3
       - name: demo
         run: python -m examples.hr
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ruff
+        run: pipx run ruff==0.14.0 check --select F,E9,B,UP --ignore UP007,B023,B904 --target-version py310 template scripts skill

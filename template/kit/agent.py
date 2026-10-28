@@ -23,13 +23,11 @@ skill/building-ai-agents/scripts/check_freshness.py.
 """
 
 import json
-import os
-import urllib.parse
 from dataclasses import dataclass, field
 
 from .context import Session, dumps
 from .guard import Guard
-from .net import key, post
+from .net import key_for, post
 from .policy import User
 from .tools import Call, NeedsApproval, Result, Toolbox
 from .trace import Tracer
@@ -153,16 +151,29 @@ def _tool_msg(call: Call, content: str, is_error: bool = False) -> dict:
 
 # ---------------------------------------------------------------- models
 
-def model_from(spec: str, effort: str | None = None):
-    """'anthropic:<id>' (Messages API), 'openai:<id>' (Responses API) or 'openai:<id>@<base_url>'
-    (Chat Completions, for vLLM, SGLang, Ollama or Gemini's OpenAI-compatible endpoint)."""
+SPECS = """anthropic:<id>[@<base_url>]   Messages API (Anthropic, or a server that speaks it)
+openai:<id>                     Responses API at OpenAI
+openai:<id>@<base_url>          Chat Completions (vLLM, SGLang, Ollama, Gemini's endpoint)
+responses:<id>@<base_url>       Responses API at another server"""
+
+
+def model_from(spec: str, effort: str | None = None, max_tokens: int | None = None):
+    """A model adapter from a spec; see SPECS. base_url is the API root, e.g. http://127.0.0.1:11434/v1.
+    max_tokens caps each answer, reasoning included, which bounds both time and cost."""
     provider, _, rest = spec.partition(":")
     model_id, _, base = rest.partition("@")
+    base = base.rstrip("/")
+    if not model_id:
+        raise ValueError(f"no model id in {spec!r}; use one of:\n{SPECS}")
     if provider == "anthropic":
-        return Anthropic(model_id, effort=effort)
-    if provider == "openai":
-        return OpenAICompatible(model_id, base) if base else OpenAIResponses(model_id, effort=effort)
-    raise ValueError(f"unknown provider {provider!r}; use anthropic:<id> or openai:<id>[@base_url]")
+        url = f"{base}/messages" if base else "https://api.anthropic.com/v1/messages"
+        return Anthropic(model_id, max_tokens=max_tokens or 16000, effort=effort, url=url)
+    if provider == "openai" and base:
+        return OpenAICompatible(model_id, base, max_tokens=max_tokens)
+    if provider == "openai" or (provider == "responses" and base):
+        url = f"{base}/responses" if base else "https://api.openai.com/v1/responses"
+        return OpenAIResponses(model_id, effort=effort, max_tokens=max_tokens, url=url)
+    raise ValueError(f"unknown model spec {spec!r}; use one of:\n{SPECS}")
 
 
 def _args(text: str | None) -> dict:
@@ -193,7 +204,7 @@ class Anthropic:
     def __init__(self, model: str, max_tokens: int = 16000, effort: str | None = None, api_key: str | None = None,
                  url: str = "https://api.anthropic.com/v1/messages", version: str = "2026-10-21"):
         self.model, self.max_tokens, self.effort, self.url, self.version = model, max_tokens, effort, url, version
-        self.api_key = key("ANTHROPIC_API_KEY", api_key)
+        self.api_key = key_for(url, "api.anthropic.com", "ANTHROPIC_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {
@@ -241,9 +252,9 @@ class OpenAIResponses:
     Stateless (store=false): reasoning comes back encrypted and goes back with the turn it belongs to."""
 
     def __init__(self, model: str, effort: str | None = None, api_key: str | None = None,
-                 url: str = "https://api.openai.com/v1/responses"):
-        self.model, self.effort, self.url = model, effort, url
-        self.api_key = key("OPENAI_API_KEY", api_key)
+                 url: str = "https://api.openai.com/v1/responses", max_tokens: int | None = None):
+        self.model, self.effort, self.url, self.max_tokens = model, effort, url, max_tokens
+        self.api_key = key_for(url, "api.openai.com", "OPENAI_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {"model": self.model, "instructions": system, "input": _to_responses(messages),
@@ -253,6 +264,8 @@ class OpenAIResponses:
                               "parameters": t["input_schema"], "strict": False} for t in tools]
         if self.effort:
             body["reasoning"] = {"effort": self.effort}
+        if self.max_tokens:
+            body["max_output_tokens"] = self.max_tokens
         out = post(self.url, {"authorization": f"Bearer {self.api_key}"}, body)
         items = out.get("output", [])
         text = "".join(part.get("text", "") for item in items if item["type"] == "message"
@@ -284,16 +297,17 @@ class OpenAICompatible:
     any other server that speaks it. For OpenAI's own current models use OpenAIResponses: from
     GPT-5.4 on, Chat Completions calls tools only at reasoning effort none.
 
-    The key comes from OPENAI_API_KEY only when base_url is OpenAI's own API; any other server
-    gets LLM_API_KEY (or none), so an OpenAI key is never sent to a server that is not OpenAI."""
+    OPENAI_API_KEY goes only to OpenAI's own API; any other server gets LLM_API_KEY (see net.key_for)."""
 
-    def __init__(self, model: str, base_url: str = "https://api.openai.com/v1", api_key: str | None = None):
-        self.model, self.base_url = model, base_url.rstrip("/")
-        openai = urllib.parse.urlsplit(self.base_url).hostname == "api.openai.com"
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY" if openai else "LLM_API_KEY", "none")
+    def __init__(self, model: str, base_url: str = "https://api.openai.com/v1", api_key: str | None = None,
+                 max_tokens: int | None = None):
+        self.model, self.base_url, self.max_tokens = model, base_url.rstrip("/"), max_tokens
+        self.api_key = key_for(self.base_url, "api.openai.com", "OPENAI_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {"model": self.model, "messages": [{"role": "system", "content": system}] + _to_openai(messages)}
+        if self.max_tokens:
+            body["max_tokens"] = self.max_tokens
         if tools:
             body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
                                                                "parameters": t["input_schema"]}} for t in tools]

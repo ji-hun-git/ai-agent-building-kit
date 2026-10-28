@@ -98,8 +98,9 @@ def main(argv=None) -> int:
     ap.add_argument("cases")
     ap.add_argument("--agent", required=True, help="module:function that returns a fresh Agent")
     ap.add_argument("--k", type=int, default=3, help="trials per case (pass^k)")
-    ap.add_argument("--model", help="anthropic:<id> | openai:<id>[@base_url]; default: whatever build() uses")
+    ap.add_argument("--model", help="anthropic:<id>[@base_url] | openai:<id>[@base_url] | responses:<id>@base_url")
     ap.add_argument("--effort", help="reasoning effort for --model, where the model supports it")
+    ap.add_argument("--max-tokens", type=int, help="cap on each answer for --model, reasoning included")
     args = ap.parse_args(argv)
 
     module, _, fn = args.agent.partition(":")
@@ -107,12 +108,12 @@ def main(argv=None) -> int:
         ap.error("--agent must be module:function, e.g. examples.hr:build")
     build = getattr(importlib.import_module(module), fn)
     if args.model:
-        spec, effort, plain = args.model, args.effort, build
+        spec, effort, limit, plain = args.model, args.effort, args.max_tokens, build
         try:
-            model_from(spec, effort)
+            model_from(spec, effort, limit)
         except (ValueError, APIError) as e:
             ap.error(str(e))
-        build = lambda: plain(model=model_from(spec, effort), model_id=spec.split(":", 1)[1].split("@")[0])
+        build = lambda: plain(model=model_from(spec, effort, limit), model_id=spec.split(":", 1)[1].split("@")[0])
     with open(args.cases, encoding="utf-8") as f:
         cases = json.load(f)
     try:
