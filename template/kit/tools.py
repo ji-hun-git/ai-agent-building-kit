@@ -18,7 +18,8 @@ an answer, but it can no longer choose an action on its own.
 
 import hashlib
 from dataclasses import dataclass
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .context import Session, dumps
 from .policy import Policy, User

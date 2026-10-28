@@ -26,7 +26,7 @@ import os
 import re
 from collections import Counter
 from dataclasses import dataclass, replace
-from typing import Callable
+from collections.abc import Callable
 
 from .net import post
 from .policy import User
@@ -158,14 +158,14 @@ class Index:
             ranked = lexical
         if self.rerank:
             wide = ranked[: self.wide]
-            scores = dict(zip(wide, self.rerank(query, [self.chunks[i].body for i in wide])))
+            scores = dict(zip(wide, self.rerank(query, [self.chunks[i].body for i in wide]), strict=True))
             ranked = [i for i in sorted(wide, key=lambda i: -scores[i])
                       if self.min_score is None or scores[i] >= self.min_score]
         return [(self.chunks[i], scores[i]) for i in ranked[:k]]
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     return dot / ((math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))) or 1.0)
 
 

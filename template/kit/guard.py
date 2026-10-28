@@ -45,9 +45,9 @@ import os
 import re
 import urllib.parse
 from dataclasses import dataclass, field, replace
-from typing import Callable
+from collections.abc import Callable
 
-from .net import post
+from .net import key, post
 
 
 @dataclass(frozen=True)
@@ -303,7 +303,7 @@ class OpenAIModeration:
     def __init__(self, model: str = "omni-moderation-latest", api_key: str | None = None,
                  url: str = "https://api.openai.com/v1/moderations"):
         self.model, self.url = model, url
-        self.api_key = api_key or os.environ["OPENAI_API_KEY"]
+        self.api_key = key("OPENAI_API_KEY", api_key)
 
     def __call__(self, text: str, stage: str) -> list[Finding]:
         out = post(self.url, {"authorization": f"Bearer {self.api_key}"}, {"model": self.model, "input": text})

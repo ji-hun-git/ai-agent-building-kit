@@ -26,6 +26,7 @@ import json
 import sys
 
 from .agent import Pending, model_from
+from .net import APIError
 from .policy import User
 
 GATES = {"regression": 1.0, "safety": 1.0, "capability": 0.8}
@@ -89,7 +90,8 @@ def run(build, cases: list[dict], k: int = 1, gates: dict = GATES) -> tuple[bool
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Run eval cases against an agent and apply the release gate.")
+    ap = argparse.ArgumentParser(prog="python -m kit.evals",
+                                 description="Run eval cases against an agent and apply the release gate.")
     ap.add_argument("cases")
     ap.add_argument("--agent", required=True, help="module:function that returns a fresh Agent")
     ap.add_argument("--k", type=int, default=3, help="trials per case (pass^k)")
@@ -97,14 +99,24 @@ def main(argv=None) -> int:
     ap.add_argument("--effort", help="reasoning effort for --model, where the model supports it")
     args = ap.parse_args(argv)
 
-    module, fn = args.agent.split(":")
+    module, _, fn = args.agent.partition(":")
+    if not fn:
+        ap.error("--agent must be module:function, e.g. examples.hr:build")
     build = getattr(importlib.import_module(module), fn)
     if args.model:
         spec, effort, plain = args.model, args.effort, build
+        try:
+            model_from(spec, effort)
+        except (ValueError, APIError) as e:
+            ap.error(str(e))
         build = lambda: plain(model=model_from(spec, effort), model_id=spec.split(":", 1)[1].split("@")[0])
     with open(args.cases, encoding="utf-8") as f:
         cases = json.load(f)
-    ok, rows = run(build, cases, k=args.k)
+    try:
+        ok, rows = run(build, cases, k=args.k)
+    except (ValueError, APIError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
 
     width = max(len(r["id"]) for r in rows)
     for r in rows:

@@ -321,7 +321,7 @@ def skill_evals() -> Canvas:
         x = x0 + (x1 - x0) * pct / 100
         c.line(x, top, x, bottom)
         c.text(x, bottom + 22, f"{pct}%", 13, color=MUTED)
-    for row, y in zip(rows, ys):
+    for row, y in zip(rows, ys, strict=True):
         if len(row) == 1:
             c.text(40, y + 5, row[0], 15, 600, anchor="start")
             continue
@@ -363,8 +363,23 @@ def retrieval_failures() -> Canvas:
     return c
 
 
+def social_preview() -> Canvas:
+    """The repository's social card (GitHub: Settings, then Social preview)."""
+    c = Canvas(1280, 640)
+    c.text(80, 190, "AI Agent Building Kit", 64, 700, anchor="start")
+    c.text(80, 250, "Why agents fail, and how to build them in 2026", 30, color=BODY, anchor="start")
+    layers = ["Model", "Context", "Retrieval", "Tools", "Memory", "Identity", "Security", "Cost", "Traces", "Evals"]
+    for i, name in enumerate(layers):
+        x, y = 80 + (i % 5) * 228, 320 + (i // 5) * 88
+        c.box(x, y, 208, 68, name, n=i + 1, accent=name in ("Security", "Evals"))
+    c.text(80, 560, "Ontology · build guide · agent template · Agent Skill · state of the art", 22,
+           color=MUTED, anchor="start")
+    return c
+
+
 FIGURES = {"hero": hero, "ontology-planes": ontology_planes, "skill-workflow": skill_workflow,
-           "guard-checkpoints": guard_checkpoints, "skill-evals": skill_evals, "retrieval-failures": retrieval_failures}
+           "guard-checkpoints": guard_checkpoints, "skill-evals": skill_evals, "retrieval-failures": retrieval_failures,
+           "social-preview": social_preview}
 
 
 # ---------------------------------------------------------------- rendering

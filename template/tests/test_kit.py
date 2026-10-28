@@ -350,5 +350,21 @@ class TestEdges(unittest.TestCase):
         self.assertEqual(evals.run(lambda: None, []), (False, []))
 
 
+class TestErrors(unittest.TestCase):
+    def test_provider_errors_read_as_sentences(self):
+        import io
+        import urllib.error
+        from kit.net import APIError, key, post
+        body = io.BytesIO(b'{"error": {"message": "model not found"}}')
+        err = urllib.error.HTTPError("http://x", 404, "Not Found", {}, body)
+        with mock.patch("urllib.request.urlopen", side_effect=err), self.assertRaises(APIError) as caught:
+            post("http://x", {}, {})
+        self.assertIn("404", str(caught.exception))
+        self.assertIn("model not found", str(caught.exception))
+        with mock.patch.dict(os.environ, {}, clear=True), self.assertRaises(APIError) as caught:
+            key("ANTHROPIC_API_KEY")
+        self.assertIn("ANTHROPIC_API_KEY", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

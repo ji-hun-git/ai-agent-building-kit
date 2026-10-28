@@ -13,7 +13,7 @@ skill/building-ai-agents/scripts/check_freshness.py or see sota/README.md.
 
 import argparse
 
-from kit import Pending, Tracer, User, model_from
+from kit import APIError, Pending, Tracer, User, model_from
 
 from . import build
 
@@ -41,10 +41,17 @@ def make_model(spec: str | None, effort: str | None = None):
 
 def turn(agent, session, user, text, ask) -> None:
     print(f"\n{user.id}> {text}")
-    out = agent.run(session, user, text)
-    while isinstance(out, Pending):
-        print(f"  approval needed: {out}")
-        out = agent.resume(session, user, approved=ask())
+    turn_text(agent, session, user, text, ask)
+
+
+def turn_text(agent, session, user, text, ask) -> None:
+    try:
+        out = agent.run(session, user, text)
+        while isinstance(out, Pending):
+            print(f"  approval needed: {out}")
+            out = agent.resume(session, user, approved=ask())
+    except APIError as e:  # say what the provider said, and keep the session usable
+        out = f"(the model call failed: {e})"
     print(f"agent> {out}")
 
 
@@ -58,7 +65,10 @@ def main() -> None:
     ap.add_argument("--no-guard", action="store_true", help="turn off the guard and lockdown")
     args = ap.parse_args()
 
-    model, model_id = make_model(args.model, args.effort)
+    try:
+        model, model_id = make_model(args.model, args.effort)
+    except (ValueError, APIError) as e:
+        raise SystemExit(f"error: {e}") from None
     tracer = Tracer(args.trace) if args.trace else None
     agent = build(model, model_id, tracer, guarded=not args.no_guard)
     print(f"model: {model_id}   release: {agent.tracer.release}")
@@ -67,12 +77,11 @@ def main() -> None:
         user = USERS[args.user]
         session = agent.start(user)
         ask = lambda: input("  approve? [y/N] ").strip().lower() == "y"
-        while (text := input(f"\n{user.id}> ").strip()) not in ("", "exit", "quit"):
-            out = agent.run(session, user, text)
-            while isinstance(out, Pending):
-                print(f"  approval needed: {out}")
-                out = agent.resume(session, user, approved=ask())
-            print(f"agent> {out}")
+        try:
+            while (text := input(f"\n{user.id}> ").strip()) not in ("", "exit", "quit"):
+                turn_text(agent, session, user, text, ask)
+        except (EOFError, KeyboardInterrupt):
+            print()
         return
 
     for who, text in TOUR:  # each turn in a fresh session; approvals are answered "no" in the tour

@@ -109,6 +109,8 @@ scripts/     install-skill.ps1, install-skill.sh, make_figures.py (every figure,
 
 Third-party sources are cited where they are used; see [NOTICE.md](NOTICE.md).
 
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report a way around a guarantee privately, as in [SECURITY.md](SECURITY.md).
+
 ## Citation
 
 ```bibtex

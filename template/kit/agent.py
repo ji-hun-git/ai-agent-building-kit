@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 
 from .context import Session, dumps
 from .guard import Guard
-from .net import post
+from .net import key, post
 from .policy import User
 from .tools import Call, NeedsApproval, Result, Toolbox
 from .trace import Tracer
@@ -190,7 +190,7 @@ class Anthropic:
     def __init__(self, model: str, max_tokens: int = 16000, effort: str | None = None, api_key: str | None = None,
                  url: str = "https://api.anthropic.com/v1/messages", version: str = "2026-10-21"):
         self.model, self.max_tokens, self.effort, self.url, self.version = model, max_tokens, effort, url, version
-        self.api_key = api_key or os.environ["ANTHROPIC_API_KEY"]
+        self.api_key = key("ANTHROPIC_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {
@@ -240,7 +240,7 @@ class OpenAIResponses:
     def __init__(self, model: str, effort: str | None = None, api_key: str | None = None,
                  url: str = "https://api.openai.com/v1/responses"):
         self.model, self.effort, self.url = model, effort, url
-        self.api_key = api_key or os.environ["OPENAI_API_KEY"]
+        self.api_key = key("OPENAI_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {"model": self.model, "instructions": system, "input": _to_responses(messages),

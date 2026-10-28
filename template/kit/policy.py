@@ -12,7 +12,7 @@ The model proposes tool calls. This module decides whether they run.
 """
 
 from dataclasses import dataclass
-from typing import Callable
+from collections.abc import Callable
 
 Rule = Callable[["User", dict], bool]
 

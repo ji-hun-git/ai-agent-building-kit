@@ -72,4 +72,6 @@ def main(skill_dir: str, out_dir: str) -> None:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("usage: python make_stale_skill.py <skill_dir> <out_dir>")
     main(sys.argv[1], sys.argv[2])
