@@ -9,6 +9,16 @@ python -m unittest                                               # the tests
 python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3   # the release gate
 ```
 
+Three worked agents, each closing different failures, each with its own cases and gate:
+
+| Example | What it guards | Run |
+| --- | --- | --- |
+| [`examples/hr`](examples/hr) | data: permissions per user and document, grounded answers, a planted instruction, a hidden one, an answer that phones home | `python -m examples.hr` |
+| [`examples/support`](examples/support) | money: refund limits by role over the call's arguments, irreversible refunds a person approves, a tool that can only touch its own ticket's order, card numbers in tickets | `python -m examples.support` |
+| [`examples/research`](examples/research) | several agents: a lead and researchers with clean contexts and one read-only tool, a single writer, a planted note that tries to title the brief | `python -m examples.research` |
+
+The same rules on vendor SDKs, each with its own pinned requirements, are in [`integrations/`](integrations). New to all of this? Start with [the lessons](../learn/).
+
 The tour runs an HR assistant against a deliberately gullible stand-in model. It answers from policy documents with citations, says "I couldn't find that" instead of guessing, refuses an intern's request for the CEO's pay band, and asks before filing leave. It also obeys every instruction it finds in a document, and the harness contains each one:
 
 ```

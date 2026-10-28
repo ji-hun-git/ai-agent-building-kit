@@ -27,10 +27,38 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: unit tests
         run: python -m unittest -v
-      - name: release gate (pass^3)
-        run: python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3
-      - name: demo
-        run: python -m examples.hr
+      - name: release gates (pass^3)
+        shell: bash
+        run: |
+          for example in hr support research; do
+            python -m kit.evals examples/$example/cases.json --agent examples.$example:build --k 3
+          done
+      - name: demos
+        shell: bash
+        run: |
+          for example in hr support research; do python -m examples.$example; done
+
+  integrations:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [openai_agents, claude_agent_sdk]
+    defaults:
+      run:
+        working-directory: template
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: pinned requirements
+        run: pip install -r integrations/${{ matrix.sdk }}/requirements.txt
+      - name: tests (offline, no model; none may skip)
+        shell: bash
+        run: |
+          python -m unittest -v tests.test_${{ matrix.sdk }} 2>&1 | tee tests.log
+          ! grep -q "skipped" tests.log
 
   lint:
     runs-on: ubuntu-latest

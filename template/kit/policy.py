@@ -51,7 +51,11 @@ class Policy:
         rule = self.rules.get(tool)
         if rule is None:
             return False, f"no policy covers '{tool}', so it is denied by default"
-        if rule(user, args):
+        try:
+            allowed = rule(user, args)
+        except Exception:  # fail closed: a rule that cannot read the arguments denies them
+            return False, f"the rule for '{tool}' could not check these arguments"
+        if allowed:
             return True, ""
         return False, f"user '{user.id}' is not allowed to call '{tool}' with these arguments"
 

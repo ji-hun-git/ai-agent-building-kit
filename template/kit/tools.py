@@ -123,7 +123,7 @@ class Toolbox:
             raise NeedsApproval(call, "this session has read untrusted content, and in lockdown "
                                       "every action after that needs a person")
         if not approved and tool.needs_approval:
-            raise NeedsApproval(call, f"{tool.name} is a {tool.kind} action")
+            raise NeedsApproval(call, f"{tool.name} is {'an' if tool.kind[0] in 'aeiou' else 'a'} {tool.kind} action")
 
         # Exposure starts when the tool runs, not when it succeeds: an error message can carry
         # private or untrusted text too.

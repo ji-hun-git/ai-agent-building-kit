@@ -234,4 +234,7 @@ def search_tool(index: Index, name: str = "search_docs", what: str = "company do
         required=("query",),
         fn=run,
         untrusted=True,
+        # An index that holds restricted documents can return them, so its results are private data
+        # and, with untrusted text, trip the trifecta rule.
+        private=any(PUBLIC not in c.acl for c in index.chunks),
     )

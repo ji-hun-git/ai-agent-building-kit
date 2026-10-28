@@ -10,8 +10,9 @@ Author: **Jihun Chae** (KAIST GSCT) · [chaejihun@kaist.ac.kr](mailto:chaejihun@
 
 | | |
 | --- | --- |
+| [**learn/**](learn/) | Twelve lessons from a first run to a shipped agent, each with an exercise on real code and a check you can run. Start here if you are new. |
 | [**guide/**](guide/) | Why agents fail and how to build them in 2026. [The ontology](guide/ontology.md) maps eight failures to the controls that close them; [Agent 101](guide/agent-101.md) is a ten-step build guide where every default links to its source. |
-| [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, lockdown, a guard that screens prompts, data and answers, permission-aware hybrid retrieval with reranking, traces, release versions and an eval gate. Runs offline in five seconds. |
+| [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, lockdown, a guard that screens prompts, data and answers, permission-aware hybrid retrieval with reranking, traces, release versions and an eval gate. Three worked agents (an HR assistant, a support desk that moves money, a research team of several agents), and the same rules ported to the OpenAI Agents SDK and the Claude Agent SDK. Runs offline in seconds. |
 | [**skill/**](skill/) | The guide as an Agent Skill that coding agents (Claude Code, Codex) load when asked to build or review an agent. It checks what is current before trusting its own snapshot. |
 | [**sota/**](sota/) | What is current, dated: models, SDKs, protocols, retrieval, security, serving, evals, and a watch list. [Upgrade ladders](sota/ladders.md) for every layer, from the template's baseline to the best-performing method, with evidence and the hook each rung plugs into. Plus [the repositories worth reading](sota/repos.md) and what this kit takes from each. |
 
@@ -103,7 +104,8 @@ Once installed, a coding agent asked to build, design or review an agent follows
 
 ```
 guide/       ontology.md, agent-101.md
-template/    kit/ (the harness and its guard), examples/hr/ (a worked agent), tests/
+learn/       twelve lessons with exercises
+template/    kit/ (the harness and its guard), examples/ (hr, support, research), integrations/ (vendor SDKs), tests/
 skill/       building-ai-agents/ (SKILL.md, references/, templates/, scripts/, evals/)
 sota/        README.md (state of the art, dated), ladders.md (upgrade ladders), repos.md (reference repositories)
 docs/        figures

@@ -1,0 +1,4 @@
+# The platform wheels bundle the Claude Code CLI the SDK drives (2.1.310 with this release).
+# mcp is pinned too: the SDK serves in-process tools differently on mcp 1.x and 2.x.
+claude-agent-sdk==0.2.174
+mcp==2.3.0
