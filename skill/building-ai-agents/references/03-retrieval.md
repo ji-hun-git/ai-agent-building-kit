@@ -80,8 +80,8 @@ Give the agent retrieval as a tool it calls, backed by a permission-aware hybrid
 | --- | --- | --- |
 | Contextual Retrieval gains (Anthropic-reported) | Top-20 failure 5.7% → 3.7% → 2.9% → 1.9% with reranking (−35/−49/−67%) | https://www.anthropic.com/news/contextual-retrieval |
 | Cohere Embed 5 Pro/Fast, ViDoRe V3 (vendor-reported) | Pro 85.8, Fast 84.5; Voyage 4 Large 83.7; Gemini Embedding 2 83.2; OpenAI text-embedding-3-large 75.5; 128K context, released 2026-09-30 | https://cohere.com/blog/embed-5 |
-| ColPali-family page-image retrievers | ICLR 2025; introduced ViDoRe; newer checkpoints and multimodal embedders appear often | https://arxiv.org/abs/2407.01449 |
-| MTEB leader (Microsoft-reported) | Harrier-OSS-v1-27B rank 1 on multilingual MTEB v2, 74.3 (standings as of 2026-03-16); October 2026 leader not confirmed | https://blogs.bing.com/search/April-2026/Microsoft-Open-Sources-Industry-Leading-Embedding-Model |
+| ColPali-family page-image retrievers | ICLR 2025; introduced ViDoRe. On ViDoRe v1&v2 (read 2026-10-28) Qwen3.5-based checkpoints lead (85.98) against ColPali v1.3 (76.17); `colpali-engine` is deprecated in favour of Sentence Transformers | https://arxiv.org/abs/2407.01449 |
+| MTEB leader | Harrier-OSS-v1-27B still rank 1 on multilingual MTEB v2 at 74.27 when read on 2026-10-28; 78% of its tasks zero-shot | https://blogs.bing.com/search/April-2026/Microsoft-Open-Sources-Industry-Leading-Embedding-Model |
 | Cohere Rerank 5 Pro/Fast (vendor-reported) | ECE ~0.06; Context Focus keeps 96%/87% quality at half/quarter text; BRIGHT 82.2; search agent 46% → 58% with 35% fewer tokens; 2026-10-21 | https://cohere.com/blog/rerank-5 |
 | Voyage rerank-3 / rerank-3-lite (vendor-reported) | 32K context; NDCG@10 +2.72% vs Cohere Rerank v4.0 Pro, +3.02% vs Qwen3-Reranker-8B; 2026-09-30 | https://blog.voyageai.com/2026/09/30/rerank-3/ |
 | Jina reranker v3.5 (vendor-reported) | 0.6B listwise; BEIR 63.20; weights under a non-commercial licence; 2026-08-03 | https://jina.ai/en-US/news/jina-reranker-v3-5-faster-listwise-reranking-hybrid-attention-self-distillation/ |

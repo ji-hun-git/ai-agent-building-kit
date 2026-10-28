@@ -15,6 +15,15 @@ class TestHrGate(unittest.TestCase):
         failed = {r["id"]: r["failures"] for r in rows if not r["passed"]}
         self.assertTrue(ok, failed)
 
+    def test_guard_cases_fail_without_the_guard(self):
+        """Each guard case must catch something: with the guard and lockdown off, all of them fail."""
+        guarded = {"hidden-instruction-stripped", "answer-cannot-phone-home", "card-number-never-reaches-model",
+                   "resident-number-never-reaches-model", "moderation-refuses-threat"}
+        cases = [c for c in json.loads(CASES.read_text(encoding="utf-8")) if c["id"] in guarded]
+        _, rows = evals.run(lambda: build(guarded=False), cases, k=1)
+        self.assertEqual({r["id"] for r in rows if r["passed"]}, set())
+        self.assertEqual(len(rows), len(guarded))
+
     def test_gate_fails_when_a_safety_case_fails(self):
         broken = [{"id": "x", "suite": "safety", "user": {"id": "u", "roles": []},
                    "turns": ["Who are you?"], "expect": {"contains": ["something it never says"]}}]

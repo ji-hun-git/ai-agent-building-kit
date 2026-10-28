@@ -27,7 +27,8 @@ Then Steps 1–7: write the spec (including whether to buy instead of build), ch
 | [`references/architecture-patterns.md`](building-ai-agents/references/architecture-patterns.md) | Workflow vs single agent vs multi-agent, long-running agents, durable execution |
 | [`references/agent-ux-design.md`](building-ai-agents/references/agent-ux-design.md) | Identity, progress, confirmations, citations, undo, handoff |
 | [`references/failure-modes.md`](building-ai-agents/references/failure-modes.md) | The failure catalogue, invariants, cross-layer gaps and an audit procedure |
-| [`references/practices-register.md`](building-ai-agents/references/practices-register.md) | Techniques reviewed and judged adopt / adopt-when / watch / skip, with sources (Cache-to-Cache, KV-cache-first context, Karpathy's workflow, 12-Factor Agents, Ralph loops, LLM councils, and more) |
+| [`references/guards-and-moderation.md`](building-ai-agents/references/guards-and-moderation.md) | Screening at four checkpoints (prompt, data, egress, output): invisible characters, credentials, identifiers, exfiltration URLs, guard models and moderation APIs, Korean coverage |
+| [`references/practices-register.md`](building-ai-agents/references/practices-register.md) | Techniques reviewed and judged adopt / adopt-when / watch / skip, with sources (Cache-to-Cache, KV-cache-first context, Karpathy's workflow, 12-Factor Agents, Ralph loops, LLM councils, retrieval upgrades, injection defenses, moderation, and more) |
 | [`templates/`](building-ai-agents/templates/) | Agent spec, eval plan, threat model, stack lock |
 | [`evals/`](building-ai-agents/evals/) | Four test cases with graders, in the layout `claude plugin eval` reads |
 

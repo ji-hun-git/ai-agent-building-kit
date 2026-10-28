@@ -8,7 +8,8 @@ A case is a conversation plus checks on the outcome and on what the agent did:
      "approve": null,                       # true / false / null: how to answer approvals
      "expect": {"excludes": ["P9"], "contains": ["can't"], "writes": 0}}
 
-Checks: contains, excludes (case-insensitive), called, not_called, pending, writes.
+Checks: contains, excludes (case-insensitive), called, not_called, pending, writes, and
+unseen: text that must never reach the model (a card number the user pasted, say).
 A case passes only if every one of its k trials passes (pass^k): agents fail
 intermittently, and a gate that accepts "usually" ships "sometimes broken".
 
@@ -55,6 +56,10 @@ def trial(build, case: dict) -> tuple[bool, list[str]]:
         fails.append(f"pending={isinstance(out, Pending)}, expected {exp['pending']}")
     if "writes" in exp and len(session.ledger) != exp["writes"]:
         fails.append(f"{len(session.ledger)} writes, expected {exp['writes']}")
+    sent = json.dumps(session.messages, ensure_ascii=False)
+    for s in exp.get("unseen", []):
+        if s in sent:
+            fails.append(f"the model saw {s!r}")
     return not fails, fails
 
 

@@ -2,9 +2,10 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
-from kit import (Agent, Call, Doc, Index, NeedsApproval, Pending, Policy, Reply, Scripted, Session, Tool,
-                 Toolbox, Tracer, User, anyone, bundle, own_records, role)
+from kit import (Agent, Call, Doc, Embeddings, Index, NeedsApproval, Pending, Policy, Reply, Reranker, Scripted,
+                 Session, Tool, Toolbox, Tracer, User, anyone, bundle, own_records, role)
 from kit.agent import _to_anthropic, _to_openai
 from kit.context import fingerprint
 
@@ -125,6 +126,34 @@ class TestRetrieval(unittest.TestCase):
         embed = lambda text: [text.lower().count("leave"), text.lower().count("ceo")]
         hits = Index(self.docs, embed=embed).search("annual leave days", HR)
         self.assertEqual(hits[0][0].doc_id, "leave")
+
+    def test_chunks_without_a_query_term_are_not_returned(self):
+        hits = Index(self.docs).search("annual leave days", HR)
+        self.assertEqual([c.doc_id for c, _ in hits], ["leave"])
+
+    def test_situate_adds_context_and_changes_the_version(self):
+        plain = Index(self.docs)
+        situated = Index(self.docs, situate=lambda doc, c: f"From the {doc.title.lower()}, covering time off.")
+        self.assertIn("covering time off", situated.chunks[0].body)
+        self.assertNotEqual(plain.version, situated.version)
+        self.assertEqual(situated.search("time off", ALICE)[0][0].doc_id, "leave")
+
+    def test_rerank_reorders_and_min_score_abstains(self):
+        rerank = lambda query, texts: [0.9 if "P9" in t else 0.1 for t in texts]
+        index = Index(self.docs, rerank=rerank, min_score=0.5)
+        self.assertEqual(index.search("leave and bands", HR)[0][0].doc_id, "bands")
+        self.assertEqual(index.search("leave and bands", ALICE), [])  # only the low-scored chunk is visible
+
+    def test_adapters_read_the_common_response_shapes(self):
+        shapes = [{"results": [{"index": 1, "relevance_score": 0.8}, {"index": 0, "relevance_score": 0.2}]},  # Cohere, Jina, vLLM
+                  {"data": [{"index": 1, "relevance_score": 0.8}, {"index": 0, "relevance_score": 0.2}]},     # Voyage
+                  [{"index": 1, "score": 0.8}, {"index": 0, "score": 0.2}]]                                  # TEI
+        for shape in shapes:
+            with mock.patch("kit.retrieval.post", return_value=shape):
+                self.assertEqual(Reranker("m", "http://x/rerank")("q", ["a", "b"]), [0.2, 0.8])
+        with mock.patch("kit.retrieval.post", return_value={"data": [{"index": 0, "embedding": [0.1, 0.2]}]}) as post:
+            self.assertEqual(Embeddings("m", "http://x/v1")("hello"), [0.1, 0.2])
+            self.assertEqual(post.call_args[0][0], "http://x/v1/embeddings")
 
 
 class TestContext(unittest.TestCase):

@@ -71,7 +71,7 @@ Each layer closes a failure that the previous layers leave open. Read the file w
 | 4 | Tools and actions | `references/04-tools-and-actions.md` | MCP servers to the current spec; task-shaped tools; tool search when tools exceed a few dozen; A2A only for other teams' agents; approvals + idempotency on writes |
 | 5 | Memory and context | `references/05-memory-and-context.md` | Provider compaction, tool-result clearing, file-style durable memory, sub-agents for exploration |
 | 6 | Identity and authorization | `references/06-identity-and-authz.md` | Agent workload identity; delegated tokens naming user and agent; enterprise-managed MCP auth; permission checks outside the model |
-| 7 | Security | `references/07-security.md` | No session holds private data + untrusted input + an outbound channel; injection-resistant patterns; sandbox + egress allow-list; classifiers as one layer only |
+| 7 | Security | `references/07-security.md`, `references/guards-and-moderation.md` | No session holds private data + untrusted input + an outbound channel; injection-resistant patterns; sandbox + egress allow-list; rules at the prompt, data, egress and output checkpoints; classifiers as one layer only |
 | 8 | Cost and latency | `references/08-cost-and-latency.md` | Provider prompt caching with stable prefix; learned routing under evals; batch for offline work; effort per workload |
 | 9 | Observability | `references/09-observability.md` | OpenTelemetry GenAI spans across model, tool and MCP calls; redacting Collector; release version on every span |
 | 10 | Evals and release | `references/10-evals-and-release.md` | Versioned bundle; required CI eval gate with pass^k; shadow → canary → ramp; online evals; rollback triggers |
@@ -118,6 +118,7 @@ Run Step 0, then walk the audit in `references/failure-modes.md`: for each failu
 | `references/architecture-patterns.md` | Choosing between workflow, single agent and multi-agent; long-running agents |
 | `references/01` … `10-*.md` | Building or reviewing that layer |
 | `references/agent-ux-design.md` | Designing what the user sees and approves |
+| `references/guards-and-moderation.md` | Screening prompts, documents, tool results, outbound messages and answers: invisible characters, credentials, identifiers, exfiltration URLs, guard models and moderation APIs |
 | `references/failure-modes.md` | Seeding evals; auditing an existing agent |
 | `references/practices-register.md` | Before adopting or rejecting a technique: verdicts (adopt / adopt-when / watch / skip) with sources |
 | `templates/agent-spec.md` | Step 1 |

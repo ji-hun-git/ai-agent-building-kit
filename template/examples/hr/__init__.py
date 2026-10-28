@@ -7,18 +7,22 @@ is closed by code rather than by prompt:
     invented leave policy              retrieval with citations, abstains when nothing matches
     intern reads the CEO's pay band    the user's own permissions, checked per call and per document
     instructions hidden in a document  a manipulated model still cannot send private data out
+    instructions nobody can see        the guard strips invisible characters at ingestion
+    an answer that phones home         the guard removes remote images and links from answers
+    a card number pasted into chat     the guard redacts it before the model sees it
+    a request to threaten someone      a moderation classifier refuses it before the model runs
     duplicate or unwanted leave        approval before filing, idempotent writes
     "nobody knows why"                 traces with the release version
-    a prompt edit skips the evals      bundle version + eval gate in CI
+    a prompt edit skips the evals      bundle version (prompt, model, tools, index, guard) + eval gate
 """
 
 import hashlib
 from pathlib import Path
 
-from kit import (Agent, Doc, Index, Policy, Tool, Toolbox, Tracer, anyone, bundle, load_prompt,
+from kit import (Agent, Doc, Guard, Index, Policy, Tool, Toolbox, Tracer, anyone, bundle, load_prompt,
                  search_tool)
 
-from .stand_in import StandIn
+from .stand_in import StandIn, StandInModerator
 
 HERE = Path(__file__).parent
 BALANCES = {"u-intern": 7, "u-hr": 12}
@@ -76,10 +80,14 @@ def policy() -> Policy:
             .allow("post_message", lambda u, a: a.get("channel", "@me") in ({"@me", "#hr-team"} if u.has("hr") else {"@me"})))
 
 
-def build(model=None, model_id: str = "stand-in", tracer: Tracer | None = None) -> Agent:
-    index = Index(load_docs(HERE / "docs"))
-    toolbox = Toolbox(policy()).add(*tools(index))
+def build(model=None, model_id: str = "stand-in", tracer: Tracer | None = None, guarded: bool = True) -> Agent:
+    """guarded=False drops the guard and lockdown, to show what they stop (see tests/test_hr.py)."""
+    guard = Guard(classify=StandInModerator()) if guarded else None
+    docs = load_docs(HERE / "docs")
+    index = Index(guard.documents(docs) if guard else docs)
+    toolbox = Toolbox(policy(), lockdown=guarded).add(*tools(index))
     system = load_prompt(HERE / "prompt.md")
-    release = bundle(system, model_id, [t.schema() for t in toolbox.tools.values()], index.version)
+    release = bundle(system, model_id, [t.schema() for t in toolbox.tools.values()], index.version,
+                     guard=guard.settings if guard else None, lockdown=toolbox.lockdown)
     tracer = tracer or Tracer(release=release["version"])
-    return Agent(model or StandIn(), system, toolbox, tracer, model_id=model_id)
+    return Agent(model or StandIn(), system, toolbox, tracer, model_id=model_id, guard=guard)

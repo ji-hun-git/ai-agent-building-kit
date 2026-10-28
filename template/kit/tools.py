@@ -5,9 +5,15 @@
     irreversible  always asks a person first, runs exactly once, never retried
 
 Every call goes through Toolbox.execute, in this order: known tool, required
-arguments, the user's permissions, the session's trifecta state, approval,
-the idempotency ledger, and only then the function itself. Failures come back
-to the model as plain sentences it can act on, never as stack traces.
+arguments, the user's permissions, the idempotency ledger, the session's
+trifecta state, lockdown, approval, and only then the function itself.
+Failures come back to the model as plain sentences it can act on, never as
+stack traces.
+
+Lockdown is the strict setting for agents that read untrusted content: once a
+session has read anything written by someone other than the user, every action
+needs a person, whatever its approval setting. Untrusted text can still shape
+an answer, but it can no longer choose an action on its own.
 """
 
 import hashlib
@@ -76,8 +82,8 @@ class NeedsApproval(Exception):
 
 
 class Toolbox:
-    def __init__(self, policy: Policy, max_chars: int = 4000):
-        self.policy, self.max_chars = policy, max_chars
+    def __init__(self, policy: Policy, max_chars: int = 4000, lockdown: bool = False):
+        self.policy, self.max_chars, self.lockdown = policy, max_chars, lockdown
         self.tools: dict[str, Tool] = {}
 
     def add(self, *tools: Tool) -> "Toolbox":
@@ -109,6 +115,9 @@ class Toolbox:
         if not approved and session.taint.blocks(tool.outbound):
             raise NeedsApproval(call, "this session has read private data and untrusted content; "
                                       "sending anything out needs a person to check it")
+        if not approved and self.lockdown and tool.kind != "read" and session.taint.untrusted:
+            raise NeedsApproval(call, "this session has read untrusted content, and in lockdown "
+                                      "every action after that needs a person")
         if not approved and tool.needs_approval:
             raise NeedsApproval(call, f"{tool.name} is a {tool.kind} action")
 

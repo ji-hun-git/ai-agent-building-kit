@@ -11,9 +11,9 @@ Author: **Jihun Chae** (KAIST GSCT) · [chaejihun@kaist.ac.kr](mailto:chaejihun@
 | | |
 | --- | --- |
 | [**guide/**](guide/) | Why agents fail and how to build them in 2026. [The ontology](guide/ontology.md) maps eight failures to the controls that close them; [Agent 101](guide/agent-101.md) is a ten-step build guide where every default links to its source. |
-| [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, permission-aware retrieval, traces, release versions and an eval gate. Runs offline in five seconds. |
+| [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, lockdown, a guard that screens prompts, data and answers, permission-aware hybrid retrieval with reranking, traces, release versions and an eval gate. Runs offline in five seconds. |
 | [**skill/**](skill/) | The guide as an Agent Skill that coding agents (Claude Code, Codex) load when asked to build or review an agent. It checks what is current before trusting its own snapshot. |
-| [**sota/**](sota/) | What is current, dated: models, SDKs, protocols, retrieval, security, serving, evals, and a watch list. Plus [the repositories worth reading](sota/repos.md) and what this kit takes from each. |
+| [**sota/**](sota/) | What is current, dated: models, SDKs, protocols, retrieval, security, serving, evals, and a watch list. [Upgrade ladders](sota/ladders.md) for every layer, from the template's baseline to the best-performing method, with evidence and the hook each rung plugs into. Plus [the repositories worth reading](sota/repos.md) and what this kit takes from each. |
 
 ## Quickstart
 
@@ -49,18 +49,18 @@ python -m examples.hr --model anthropic:<model-id>        # or openai:<model-id>
 
 The numbers in the figure above are the rows of this table.
 
-| # | Layer | The failure it closes | Guide | Template |
-| --- | --- | --- | --- | --- |
-| 1 | Model and harness | one model for everything, a hand-rolled loop | [Step 1](guide/agent-101.md#step-1--model-and-agent-loop) | [`agent.py`](template/kit/agent.py) |
-| 2 | Context | "I'm ChatGPT"; cache misses; prompts edited in place | [Step 2](guide/agent-101.md#step-2--instructions-and-context-engineering) | [`context.py`](template/kit/context.py) |
-| 3 | Retrieval | invented policy; search that leaks restricted files | [Step 3](guide/agent-101.md#step-3--knowledge-retrieval-in-2026) | [`retrieval.py`](template/kit/retrieval.py) |
-| 4 | Tools and actions | writes nobody approved, writes done twice | [Step 4](guide/agent-101.md#step-4--tools-and-actions) | [`tools.py`](template/kit/tools.py) |
-| 5 | Memory | long sessions that forget or drift | [Step 5](guide/agent-101.md#step-5--memory-and-context-management) | [`context.py`](template/kit/context.py) |
-| 6 | Identity and authorization | the agent acting with its own privileges | [Step 6](guide/agent-101.md#step-6--identity-and-authorization) | [`policy.py`](template/kit/policy.py) |
-| 7 | Security | prompt injection turning into data loss | [Step 7](guide/agent-101.md#step-7--security-against-prompt-injection) | [`policy.py`](template/kit/policy.py), [`tools.py`](template/kit/tools.py) |
-| 8 | Cost and latency | a cache that leaks answers across users | [Step 8](guide/agent-101.md#step-8--cost-and-latency) | [`context.py`](template/kit/context.py) |
-| 9 | Observability | "nobody knows why" | [Step 9](guide/agent-101.md#step-9--observability) | [`trace.py`](template/kit/trace.py) |
-| 10 | Evals and release | a prompt edit that skips the evals | [Step 10](guide/agent-101.md#step-10--evals-and-release) | [`release.py`](template/kit/release.py), [`evals.py`](template/kit/evals.py) |
+| # | Layer | The failure it closes | Guide | Template | Ladder |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Model and harness | one model for everything, a hand-rolled loop | [Step 1](guide/agent-101.md#step-1--model-and-agent-loop) | [`agent.py`](template/kit/agent.py) | [ladder](sota/ladders.md#model-and-harness) |
+| 2 | Context | "I'm ChatGPT"; cache misses; prompts edited in place | [Step 2](guide/agent-101.md#step-2--instructions-and-context-engineering) | [`context.py`](template/kit/context.py) | [ladder](sota/ladders.md#context) |
+| 3 | Retrieval | invented policy; search that leaks restricted files | [Step 3](guide/agent-101.md#step-3--knowledge-retrieval-in-2026) | [`retrieval.py`](template/kit/retrieval.py) | [ladder](sota/ladders.md#retrieval) |
+| 4 | Tools and actions | writes nobody approved, writes done twice | [Step 4](guide/agent-101.md#step-4--tools-and-actions) | [`tools.py`](template/kit/tools.py) | [ladder](sota/ladders.md#tools-and-actions) |
+| 5 | Memory | long sessions that forget or drift | [Step 5](guide/agent-101.md#step-5--memory-and-context-management) | [`context.py`](template/kit/context.py) | [ladder](sota/ladders.md#memory) |
+| 6 | Identity and authorization | the agent acting with its own privileges | [Step 6](guide/agent-101.md#step-6--identity-and-authorization) | [`policy.py`](template/kit/policy.py) | [ladder](sota/ladders.md#identity-and-authorization) |
+| 7 | Security | prompt injection turning into data loss; harmful requests; leaked identifiers | [Step 7](guide/agent-101.md#step-7--security-against-prompt-injection) | [`guard.py`](template/kit/guard.py), [`policy.py`](template/kit/policy.py), [`tools.py`](template/kit/tools.py) | [injection](sota/ladders.md#prompt-injection-and-hijacking) · [moderation](sota/ladders.md#moderation-of-prompts-data-and-outputs) |
+| 8 | Cost and latency | a cache that leaks answers across users | [Step 8](guide/agent-101.md#step-8--cost-and-latency) | [`context.py`](template/kit/context.py) | [ladder](sota/ladders.md#cost-and-latency) |
+| 9 | Observability | "nobody knows why" | [Step 9](guide/agent-101.md#step-9--observability) | [`trace.py`](template/kit/trace.py) | [ladder](sota/ladders.md#observability) |
+| 10 | Evals and release | a prompt edit that skips the evals | [Step 10](guide/agent-101.md#step-10--evals-and-release) | [`release.py`](template/kit/release.py), [`evals.py`](template/kit/evals.py) | [ladder](sota/ladders.md#evals-and-release) |
 
 ## Ten rules
 
@@ -92,9 +92,9 @@ Once installed, a coding agent asked to build, design or review an agent follows
 
 ```
 guide/       ontology.md, agent-101.md
-template/    kit/ (the harness), examples/hr/ (a worked agent), tests/
+template/    kit/ (the harness and its guard), examples/hr/ (a worked agent), tests/
 skill/       building-ai-agents/ (SKILL.md, references/, templates/, scripts/, evals/)
-sota/        README.md (state of the art, dated), repos.md (reference repositories)
+sota/        README.md (state of the art, dated), ladders.md (upgrade ladders), repos.md (reference repositories)
 docs/        figures
 scripts/     install-skill.ps1, install-skill.sh, make_hero.py, make_figures.py, md_to_formats.py
 ```

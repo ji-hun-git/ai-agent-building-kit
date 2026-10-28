@@ -83,7 +83,7 @@ def draw():
     cx, cw = 470, 460
     center = [
         (170, 70, "User (principal)", "OAuth-delegated · the agent acts as this user", 6),
-        (276, 70, "Input guards", "Injection classifier · retrieved text marked untrusted", 7),
+        (276, 70, "Input guard", "Hidden text stripped · secrets and IDs redacted · moderation", 7),
         (382, 70, "Prompt cache", "Frozen prefix · cache keyed by user and release", 8),
     ]
     for y, h, title, sub, n in center:
@@ -101,7 +101,7 @@ def draw():
         box(cx + 30, y, cw - 60, 68, title, sub, n)
 
     path([(700, 816), (700, 851)])
-    box(cx, 852, cw, 70, "Output guard", "Cites a source or abstains · PII redacted", 7)
+    box(cx, 852, cw, 70, "Output guard", "Cites or abstains · no remote images · IDs redacted", 7)
     path([(700, 922), (700, 957)])
     box(cx, 958, cw, 56, "User-visible answer")
 
@@ -110,7 +110,7 @@ def draw():
         ("Documents + ACLs", None, None),
         ("Contextual chunks", "structure-aware, title > heading", None),
         ("Hybrid index", "BM25 + dense, fused by RRF", None),
-        ("Filter, then rank", "ACL first; abstain when unsure", None),
+        ("Filter, rerank, cite", "ACL first; abstain below the bar", None),
     ])
     text(238, 816, "returns cited passages, marked untrusted", 14, color=BODY)
     mid = sum(left[-1]) / 2
@@ -120,7 +120,7 @@ def draw():
     right = column(1022, 490, 280, [
         ("Policy check", "the user's own permissions", 6),
         ("Lethal-trifecta rule", "private + untrusted + outbound → ask", 7),
-        ("Approval + ledger", "writes wait for a person, run once", None),
+        ("Approval + lockdown", "a person decides; writes run once", None),
         ("MCP servers", None, None),
         ("HR · Jira · Slack", None, None),
     ])
