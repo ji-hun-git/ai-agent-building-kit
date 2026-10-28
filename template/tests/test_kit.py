@@ -479,6 +479,31 @@ class TestErrors(unittest.TestCase):
             key("ANTHROPIC_API_KEY")
         self.assertIn("ANTHROPIC_API_KEY", str(caught.exception))
 
+    def test_rate_limits_and_overload_are_retried_then_reported(self):
+        import io
+        import urllib.error
+        from kit.net import RETRIES, APIError, post
+
+        def status(code, retry_after=None):
+            return urllib.error.HTTPError("http://x", code, "busy", {"retry-after": retry_after} if retry_after else {},
+                                          io.BytesIO(b'{"error": "busy"}'))
+
+        page = mock.MagicMock()
+        page.__enter__.return_value = io.BytesIO(b'{"ok": true}')
+        with mock.patch("urllib.request.urlopen", side_effect=[status(429, "7"), status(529), page]), \
+                mock.patch("time.sleep") as slept:
+            self.assertEqual(post("http://x", {}, {}), {"ok": True})
+        self.assertEqual([c.args[0] for c in slept.call_args_list], [7.0, 2.0])
+        with mock.patch("urllib.request.urlopen", side_effect=[status(400)]) as sent, \
+                mock.patch("time.sleep"), self.assertRaises(APIError):
+            post("http://x", {}, {})
+        self.assertEqual(sent.call_count, 1)  # a bad request is not asked again
+        with mock.patch("urllib.request.urlopen", side_effect=[status(503)] * (RETRIES + 1)) as sent, \
+                mock.patch("time.sleep"), self.assertRaises(APIError) as caught:
+            post("http://x", {}, {})
+        self.assertEqual(sent.call_count, RETRIES + 1)
+        self.assertIn("503", str(caught.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

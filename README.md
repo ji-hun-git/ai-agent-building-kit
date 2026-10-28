@@ -1,4 +1,27 @@
-# ai-agent-building-kit
+<h1 align="center">AI Agent Building Kit</h1>
+
+<p align="center">
+  <b>Why AI agents fail in production, and how to build ones that hold up.</b><br/>
+  A guide, a dependency-free harness with three worked agents, ports to two vendor SDKs,<br/>
+  a benchmark on real models, twelve lessons and an Agent Skill.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ji-hun-git/ai-agent-building-kit/actions/workflows/ci.yml"><img src="https://github.com/ji-hun-git/ai-agent-building-kit/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <img src="https://img.shields.io/badge/python-3.10%20to%203.14-2f6fde" alt="Python 3.10 to 3.14"/>
+  <img src="https://img.shields.io/badge/dependencies-none-2f6fde" alt="No dependencies"/>
+  <a href="benchmarks/"><img src="https://img.shields.io/badge/unsafe%20outcomes-0%20with%20the%20guard%20on-2f6fde" alt="Benchmark: no unsafe outcomes with the guard on"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20%2B%20CC%20BY%204.0-5d5d58" alt="License: MIT and CC BY 4.0"/></a>
+</p>
+
+<p align="center">
+  <a href="learn/"><b>Learn</b></a> &nbsp;|&nbsp;
+  <a href="guide/"><b>Guide</b></a> &nbsp;|&nbsp;
+  <a href="template/"><b>Template</b></a> &nbsp;|&nbsp;
+  <a href="benchmarks/"><b>Benchmark</b></a> &nbsp;|&nbsp;
+  <a href="skill/"><b>Skill</b></a> &nbsp;|&nbsp;
+  <a href="sota/"><b>State of the art</b></a>
+</p>
 
 <p align="center">
   <img src="docs/figures/hero.png" alt="Every request crosses the controls; every change crosses the gate. The ten layers of a production AI agent: user identity, input guards, prompt cache, the agent harness (context, model and loop, memory), permission-aware retrieval, tools behind a policy check, the lethal-trifecta rule and approvals, an output guard, traces, and a release gate with no skip path." width="920"/>
@@ -6,13 +29,14 @@
 
 Most company AI starts as an API wrapper and becomes an agent one production incident at a time: it calls itself ChatGPT, invents the leave policy, tells an intern the CEO's salary, follows instructions hidden in a document, runs up the bill, fails in ways nobody can explain, and then regresses because someone edited the prompt and skipped the evals. This repo is the short path past all of that, written down once, with sources, code and tests.
 
-Author: **Jihun Chae** (KAIST GSCT) · [chaejihun@kaist.ac.kr](mailto:chaejihun@kaist.ac.kr) · [ji-hun-git.github.io](https://ji-hun-git.github.io/) · verified **2026-10-28**
+Author: **Jihun Chae** (KAIST GSCT), [chaejihun@kaist.ac.kr](mailto:chaejihun@kaist.ac.kr), [ji-hun-git.github.io](https://ji-hun-git.github.io/). Verified **2026-10-29**.
 
 | | |
 | --- | --- |
 | [**learn/**](learn/) | Twelve lessons from a first run to a shipped agent, each with an exercise on real code and a check you can run. Start here if you are new. |
 | [**guide/**](guide/) | Why agents fail and how to build them in 2026. [The ontology](guide/ontology.md) maps eight failures to the controls that close them; [Agent 101](guide/agent-101.md) is a ten-step build guide where every default links to its source. |
 | [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, lockdown, a guard that screens prompts, data and answers, permission-aware hybrid retrieval with reranking, traces, release versions and an eval gate. Three worked agents (an HR assistant, a support desk that moves money, a research team of several agents), and the same rules ported to the OpenAI Agents SDK and the Claude Agent SDK. Runs offline in seconds. |
+| [**benchmarks/**](benchmarks/) | The template's release gates run as a benchmark on real models: every case three times, pass^3, and a count of unsafe outcomes, with the same harness for every model. One script reproduces it. |
 | [**skill/**](skill/) | The guide as an Agent Skill that coding agents (Claude Code, Codex) load when asked to build or review an agent. It checks what is current before trusting its own snapshot. |
 | [**sota/**](sota/) | What is current, dated: models, SDKs, protocols, retrieval, security, serving, evals, and a watch list. [Upgrade ladders](sota/ladders.md) for every layer, from the template's baseline to the best-performing method, with evidence and the hook each rung plugs into. Plus [the repositories worth reading](sota/repos.md) and what this kit takes from each. |
 
@@ -47,12 +71,33 @@ python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model ant
 python -m examples.hr --model anthropic:<model-id>        # or openai:<model-id>, or openai:<model-id>@<base_url>
 ```
 
+## Benchmark
+
+<p align="center">
+  <img src="docs/figures/benchmark.png" alt="Share of the template's 31 release-gate cases each model passed on all three trials, with unsafe outcomes per model: none with the guard on, 24 for the stand-in with the guard and lockdown removed" width="920"/>
+</p>
+
+Every model drives the same harness, prompts, documents and policies through all 31 release-gate cases of the three worked agents, three trials each. A case counts only if it passes every trial. *Unsafe* counts trials in which the harm actually happened: a leaked value, a forbidden or repeated write, a hidden value reaching the model.
+
+<!-- benchmark table -->
+| Model | API | Cases passed on all trials | Unsafe outcomes |
+| --- | --- | ---: | ---: |
+| Claude Haiku 5.5 | Messages | 31/31 | 0 |
+| GPT-6 Luna | Responses | 31/31 | 0 |
+| Muse Spark 1.3 | Responses (Meta Model API) | 30/31 | 0 |
+| Rule-based stand-in | offline | 31/31 | 0 |
+| Rule-based stand-in, **guard and lockdown off** | offline | 23/31 | 24 |
+<!-- /benchmark table -->
+
+Full results, every miss and how to reproduce them: [benchmarks/](benchmarks/).
+
 ## Compatibility
 
 | | |
 | --- | --- |
 | Python | 3.10 to 3.14, standard library only; CI on Linux, Windows and macOS |
 | Models | the Anthropic Messages API, the OpenAI Responses API, and any Chat Completions server (vLLM, SGLang, Ollama, Gemini's endpoint). Each adapter sends the provider's own reasoning back unchanged, as current models require |
+| Tested live | Claude Haiku 5.5 (Messages API), GPT-6 Luna (Responses API), Muse Spark 1.3 (Meta's Model API) and a local 2B model on Ollama: see [the benchmark](benchmarks/) |
 | Local and free | every adapter also runs against a local [Ollama](https://ollama.com) model; the manual `live` workflow does this on GitHub's runners |
 | Coding agents | the skill follows the [Agent Skills](https://agentskills.io/specification) format, for Claude Code and Codex |
 | Frameworks | the template is a reference, not a framework: [`sota/`](sota/) maps each layer to the vendor SDKs, MCP and frameworks that implement it, and the rules it enforces carry over to them |
@@ -106,10 +151,11 @@ Once installed, a coding agent asked to build, design or review an agent follows
 guide/       ontology.md, agent-101.md
 learn/       twelve lessons with exercises
 template/    kit/ (the harness and its guard), examples/ (hr, support, research), integrations/ (vendor SDKs), tests/
+benchmarks/  README.md (results on real models), results/ (one JSON file per model)
 skill/       building-ai-agents/ (SKILL.md, references/, templates/, scripts/, evals/)
 sota/        README.md (state of the art, dated), ladders.md (upgrade ladders), repos.md (reference repositories)
 docs/        figures
-scripts/     install-skill.ps1, install-skill.sh, make_figures.py (every figure, from code)
+scripts/     install-skill.ps1, install-skill.sh, benchmark.py, make_figures.py (every figure, from code)
 ```
 
 ## License
@@ -117,7 +163,7 @@ scripts/     install-skill.ps1, install-skill.sh, make_figures.py (every figure,
 | Material | License |
 | --- | --- |
 | Code (`template/`, `skill/`, `scripts/`) | [MIT](LICENSE) © 2026 Jihun Chae |
-| Writing and figures (`guide/`, `sota/`, `docs/`) | [CC BY 4.0](LICENSE-docs) © 2026 Jihun Chae |
+| Writing, results and figures (`guide/`, `learn/`, `sota/`, `benchmarks/`, `docs/`) | [CC BY 4.0](LICENSE-docs) © 2026 Jihun Chae |
 
 Third-party sources are cited where they are used; see [NOTICE.md](NOTICE.md).
 
@@ -131,6 +177,6 @@ Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report a way 
   title        = {AI Agent Building Kit},
   year         = {2026},
   howpublished = {\url{https://github.com/ji-hun-git/ai-agent-building-kit}},
-  note         = {Ontology, build guide, agent template, Agent Skill and state-of-the-art list. Verified 2026-10-28.}
+  note         = {Ontology, build guide, agent template, benchmark, Agent Skill and state-of-the-art list. Verified 2026-10-29.}
 }
 ```

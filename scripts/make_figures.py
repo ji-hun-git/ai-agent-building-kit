@@ -363,6 +363,70 @@ def retrieval_failures() -> Canvas:
     return c
 
 
+def benchmark() -> Canvas:
+    """benchmarks/: the release-gate cases at pass^k for each model, from benchmarks/results/*.json."""
+    import json
+    results = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((OUT.parent.parent / "benchmarks" / "results").glob("*.json"))]
+
+    def passed(r, example=None):
+        rows = [c for c in r["cases"] if example in (None, c["example"])]
+        return sum(c["passed"] == c["trials"] for c in rows), len(rows)
+
+    def rank(r):
+        p, n = passed(r)
+        return (not r["guard"], r["model"] == "stand-in", -p / n)
+
+    results.sort(key=rank)
+    guarded = [r for r in results if r["guard"]]
+    off = [r for r in results if not r["guard"]]
+    trials = sum(c["trials"] for r in guarded for c in r["cases"])
+    unsafe = sum(c["unsafe"] for r in guarded for c in r["cases"])
+    k = max(r["k"] for r in results)
+    x0, x1, top, step = 430, 900, 168, 62
+    rows_h = step * len(results) + (46 if len(guarded) < len(results) else 0)
+    c = Canvas(1400, top + rows_h + 120)
+    title = (f"No unsafe outcome in {trials:,} trials with the guard on" if not unsafe
+             else f"{unsafe} unsafe outcomes in {trials:,} trials with the guard on")
+    if off:
+        bad = sum(c["unsafe"] for r in off for c in r["cases"])
+        title += f"; {bad} in {sum(c['trials'] for r in off for c in r['cases']):,} with it off"
+    c.header(title,
+             f"Share of the template's {passed(results[0])[1]} release-gate cases passed on all {k} trials (pass^{k}). "
+             "Same harness, prompts, documents and policies for every model.")
+    for x, label in ((1050, "HR"), (1140, "Support"), (1230, "Research"), (1345, "Unsafe")):
+        c.text(x, top - 26, label, 13, color=MUTED, anchor="end")
+    for pct in (0, 25, 50, 75, 100):
+        x = x0 + (x1 - x0) * pct / 100
+        c.line(x, top - 12, x, top + rows_h)
+        c.text(x, top + rows_h + 22, f"{pct}%", 13, color=MUTED)
+    y = top
+    for i, r in enumerate(results):
+        if not r["guard"] and (i == 0 or results[i - 1]["guard"]):
+            c.line(40, y + 10, 1345, y + 10, LINE)
+            c.text(40, y + 36, "The same stand-in with the guard and lockdown removed", 14, 600, BODY, anchor="start")
+            y += 46
+        mid = y + step / 2
+        name = r["name"].replace(", guard and lockdown off", "")
+        c.text(40, mid - 2, name, 16, 600, INK, anchor="start")
+        c.text(40, mid + 19, r["api"] if r["api"] != "offline" else "offline, no model", 13, color=MUTED, anchor="start")
+        p, n = passed(r)
+        w = (x1 - x0) * p / n
+        color = BLUE if r["guard"] else ORANGE
+        c.rect(x0, mid - 7, x1 - x0, 14, STRIP, STRIP, 0, 7)
+        c.rect(x0, mid - 7, max(w, 14), 14, color, color, 0, 7)
+        c.text(x1 + 14, mid + 5, f"{p}/{n}", 15, 600, anchor="start")
+        for x, example in ((1050, "hr"), (1140, "support"), (1230, "research")):
+            ep, en = passed(r, example)
+            c.text(x, mid + 5, f"{ep}/{en}", 14, color=BODY, anchor="end")
+        bad = sum(case["unsafe"] for case in r["cases"])
+        c.text(1345, mid + 5, str(bad), 16, 700, RED if bad else INK, anchor="end")
+        y += step
+    c.text(40, top + rows_h + 66, "Unsafe: a trial of a safety case in which the harm happened (a leaked value, a value the model "
+                                  "must not see, a forbidden or repeated write). A miss that only fails the task is not unsafe.",
+           14, color=MUTED, anchor="start")
+    return c
+
+
 def social_preview() -> Canvas:
     """The repository's social card (GitHub: Settings, then Social preview)."""
     c = Canvas(1280, 640)
@@ -372,14 +436,14 @@ def social_preview() -> Canvas:
     for i, name in enumerate(layers):
         x, y = 80 + (i % 5) * 228, 320 + (i // 5) * 88
         c.box(x, y, 208, 68, name, n=i + 1, accent=name in ("Security", "Evals"))
-    c.text(80, 560, "Ontology · build guide · agent template · Agent Skill · state of the art", 22,
+    c.text(80, 560, "Guide, lessons, agent template, benchmark, Agent Skill and state of the art", 22,
            color=MUTED, anchor="start")
     return c
 
 
 FIGURES = {"hero": hero, "ontology-planes": ontology_planes, "skill-workflow": skill_workflow,
            "guard-checkpoints": guard_checkpoints, "skill-evals": skill_evals, "retrieval-failures": retrieval_failures,
-           "social-preview": social_preview}
+           "benchmark": benchmark, "social-preview": social_preview}
 
 
 # ---------------------------------------------------------------- rendering

@@ -3,7 +3,7 @@
 ## Licenses in this repository
 
 - **Code** (`template/`, `skill/`, `scripts/`): MIT, see `LICENSE`.
-- **Writing and figures** (`guide/`, `sota/`, `docs/`): CC BY 4.0, see `LICENSE-docs`.
+- **Writing, results and figures** (`guide/`, `learn/`, `sota/`, `benchmarks/`, `docs/`): CC BY 4.0, see `LICENSE-docs`.
 
 ## Third-party material
 

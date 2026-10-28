@@ -60,6 +60,19 @@ jobs:
           python -m unittest -v tests.test_${{ matrix.sdk }} 2>&1 | tee tests.log
           ! grep -q "skipped" tests.log
 
+  benchmark-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: the benchmark runner, offline (fails on any unsafe outcome with the guard on)
+        run: |
+          python scripts/benchmark.py run --stand-in --name "Rule-based stand-in" --k 1 --out "$RUNNER_TEMP/bench"
+          python scripts/benchmark.py run --stand-in --no-guard --name "Rule-based stand-in" --k 1 --out "$RUNNER_TEMP/bench"
+          python scripts/benchmark.py hash
+
   lint:
     runs-on: ubuntu-latest
     steps:
