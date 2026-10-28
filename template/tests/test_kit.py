@@ -4,9 +4,10 @@ import tempfile
 import unittest
 from unittest import mock
 
-from kit import (Agent, Call, Doc, Embeddings, Index, NeedsApproval, Pending, Policy, Reply, Reranker, Scripted,
-                 Session, Tool, Toolbox, Tracer, User, anyone, bundle, own_records, role)
-from kit.agent import _to_anthropic, _to_openai
+from kit import (Agent, Anthropic, Call, Doc, Embeddings, Index, NeedsApproval, OpenAIResponses, Pending, Policy,
+                 Reply, Reranker, Scripted, Session, Tool, Toolbox, Tracer, User, anyone, bundle, own_records, role)
+from kit import evals, only_values, OpenAICompatible
+from kit.agent import _to_anthropic, _to_openai, _to_responses
 from kit.context import fingerprint
 
 ALICE = User("alice", frozenset({"employee"}))
@@ -236,6 +237,117 @@ class TestAgent(unittest.TestCase):
         oai = _to_openai(msgs)
         self.assertEqual(oai[1]["tool_calls"][1]["function"]["arguments"], '{"k":1}')
         self.assertEqual([m["tool_call_id"] for m in oai[2:]], ["a", "b"])
+        resp = _to_responses(msgs)
+        self.assertEqual([i["type"] for i in resp[1:]], ["function_call"] * 2 + ["function_call_output"] * 2)
+
+    def run_twice(self, model, first, second):
+        """One tool call, then an answer; returns the request bodies the adapter sent."""
+        tb = Toolbox(Policy().allow("look", anyone)).add(Tool("look", "looks", {}, fn=lambda user: "seen"))
+        agent = Agent(model, "sys", tb)
+        with mock.patch("kit.agent.post", side_effect=[first, second]) as post:
+            out = agent.run(agent.start(ALICE), ALICE, "go")
+        return out, [c.args[2] for c in post.call_args_list], post.call_args_list[0].args[1]
+
+    def test_anthropic_sends_thinking_blocks_back_unchanged(self):
+        turn = [{"type": "thinking", "thinking": "", "signature": "sig"},
+                {"type": "tool_use", "id": "t1", "name": "look", "input": {}}]
+        out, bodies, headers = self.run_twice(
+            Anthropic("m", api_key="k"),
+            {"content": turn, "stop_reason": "tool_use", "usage": {}},
+            {"content": [{"type": "text", "text": "done"}], "stop_reason": "end_turn", "usage": {}})
+        self.assertEqual(out, "done")
+        self.assertEqual(bodies[1]["messages"][1], {"role": "assistant", "content": turn})
+        self.assertEqual(bodies[1]["messages"][2]["content"][0]["tool_use_id"], "t1")
+        self.assertEqual(headers["anthropic-version"], "2026-10-21")
+        self.assertNotIn("temperature", bodies[0])
+
+    def test_responses_sends_reasoning_and_calls_back_in_order(self):
+        items = [{"type": "reasoning", "id": "rs_1", "encrypted_content": "e"},
+                 {"type": "function_call", "id": "fc_1", "call_id": "c1", "name": "look", "arguments": "{}"}]
+        answer = {"output": [{"type": "message", "role": "assistant",
+                              "content": [{"type": "output_text", "text": "done"}]}], "usage": {}}
+        out, bodies, _ = self.run_twice(OpenAIResponses("m", api_key="k"), {"output": items, "usage": {}}, answer)
+        self.assertEqual(out, "done")
+        self.assertEqual(bodies[0]["tools"][0]["name"], "look")
+        self.assertFalse(bodies[0]["store"])
+        self.assertEqual(bodies[1]["input"][1:], items + [{"type": "function_call_output", "call_id": "c1",
+                                                           "output": "seen"}])
+
+
+class TestEdges(unittest.TestCase):
+    """Edge cases that once left the harness in a bad state."""
+
+    def approvals_agent(self, replies, **kwargs):
+        policy = Policy().allow("pay", anyone)
+        tb = Toolbox(policy).add(Tool("pay", "pays", {"n": {"type": "integer"}}, kind="irreversible",
+                                      fn=lambda user, n=0: f"paid {n}"))
+        return Agent(Scripted(replies), "sys", tb, **kwargs)
+
+    def test_moving_on_declines_what_was_waiting(self):
+        agent = self.approvals_agent([Reply(calls=[Call("1", "pay", {"n": 1})]), Reply("ok"), Reply("ok")])
+        session = agent.start(ALICE)
+        self.assertIsInstance(agent.run(session, ALICE, "pay"), Pending)
+        agent.run(session, ALICE, "never mind")
+        self.assertIsNone(session.pending)
+        self.assertEqual(session.ledger, {})
+        declined = [m for m in session.messages if m["role"] == "tool"]
+        self.assertEqual(len(declined), 1)
+        self.assertTrue(declined[0]["is_error"])
+
+    def test_step_limit_counts_across_approvals(self):
+        replies = [Reply(calls=[Call(str(i), "pay", {"n": i})]) for i in range(50)]
+        agent = self.approvals_agent(replies, max_steps=3)
+        session = agent.start(ALICE)
+        out = agent.run(session, ALICE, "pay forever")
+        for _ in range(10):
+            if not isinstance(out, Pending):
+                break
+            out = agent.resume(session, ALICE, approved=True)
+        self.assertIn("too many steps", out)
+        self.assertEqual(len(session.ledger), 3)
+        calls = [c["id"] for m in session.messages if m["role"] == "assistant" for c in m["calls"]]
+        results = [m["id"] for m in session.messages if m["role"] == "tool"]
+        self.assertEqual(calls, results)  # every call has its result, so the history stays valid
+
+    def test_tools_gated_by_arguments_can_still_be_listed(self):
+        policy = (Policy().allow("post", only_values("channel", {"@me"}))
+                  .allow("send", only_values("channel", {"@me"}), visible=anyone))
+        tb = Toolbox(policy).add(Tool("post", "posts", {}, fn=lambda user: ""), Tool("send", "sends", {}, fn=lambda user: ""))
+        self.assertEqual([t["name"] for t in tb.schemas(ALICE)], ["send"])
+
+    def test_clearing_keeps_errors(self):
+        s = Session(system="s", tools=[])
+        s.append({"role": "tool", "id": "1", "name": "request_leave", "args": {}, "content": "The user declined.",
+                  "is_error": True})
+        s.append({"role": "tool", "id": "2", "name": "read", "args": {}, "content": "long", "is_error": False})
+        self.assertEqual(s.clear_old_tool_results(keep_last=0), 1)
+        self.assertEqual(s.messages[0]["content"], "The user declined.")
+
+    def test_adapters_survive_bad_json_and_no_tools(self):
+        bad = {"choices": [{"message": {"content": None, "tool_calls": [
+            {"id": "c", "function": {"name": "look", "arguments": "{not json"}}]}}]}
+        with mock.patch("kit.agent.post", return_value=bad) as post:
+            reply = OpenAICompatible("m", "http://x/v1")("sys", [{"role": "user", "content": "q"}], [])
+        self.assertEqual(reply.calls[0].args, {})
+        self.assertNotIn("tools", post.call_args.args[2])
+        self.assertEqual(_to_anthropic([{"role": "user", "content": "q"},
+                                        {"role": "assistant", "content": "", "calls": []}]),
+                         [{"role": "user", "content": "q"}])
+
+    def test_retrieval_handles_particles_paraphrases_and_permissions(self):
+        ko = Index([Doc("l", "연차 규정", "# 연차 규정\n\n## 연차\n\n연차는 매년 15일입니다.")])
+        self.assertEqual(ko.search("연차가 며칠이에요?", ALICE)[0][0].doc_id, "l")
+        docs = [Doc("l", "Leave", "# Leave\n\n## Annual\n\nEmployees get 15 days of annual leave."),
+                Doc("i", "IT", "# IT\n\n## Passwords\n\nReset passwords at the desk.")]
+        embed = lambda t: [1.0, 0.0] if ("leave" in t.lower() or "vacation" in t.lower()) else [0.0, 1.0]
+        hits = Index(docs, embed=embed, min_similarity=0.5).search("how much vacation", ALICE)
+        self.assertEqual([c.doc_id for c, _ in hits], ["l"])
+        self.assertNotEqual(Index([Doc("d", "t", "x")]).version, Index([Doc("d", "t", "x", frozenset({"hr"}))]).version)
+
+    def test_gate_rejects_unknown_suites_and_empty_runs(self):
+        with self.assertRaises(ValueError):
+            evals.run(lambda: None, [{"id": "x", "suite": "Safety", "user": {"id": "u"}, "turns": [], "expect": {}}])
+        self.assertEqual(evals.run(lambda: None, []), (False, []))
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
+import codecs
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
-from examples.hr import build
+from examples.hr import build, load_docs
 from kit import evals
 
 CASES = Path(__file__).resolve().parents[1] / "examples" / "hr" / "cases.json"
@@ -29,6 +31,17 @@ class TestHrGate(unittest.TestCase):
                    "turns": ["Who are you?"], "expect": {"contains": ["something it never says"]}}]
         ok, _ = evals.run(build, broken, k=1)
         self.assertFalse(ok)
+
+
+class TestDocs(unittest.TestCase):
+    def test_acl_line_survives_a_byte_order_mark_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / "bands.md").write_bytes(codecs.BOM_UTF8 + b"<!-- acl: hr -->\n# Bands\n\nP9.\n")
+            self.assertEqual(load_docs(folder)[0].acl, frozenset({"hr"}))
+            (folder / "bad.md").write_text("# Bad\n\n<!-- acl: hr -->\nsecret\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_docs(folder)
 
 
 if __name__ == "__main__":

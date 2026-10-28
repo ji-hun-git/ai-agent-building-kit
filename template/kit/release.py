@@ -1,9 +1,10 @@
-"""Release bundle: everything that changes behaviour, hashed into one version.
+"""Release bundle: what changes behaviour, hashed into one version.
 
-The system prompt, the model, its settings, the tool schemas and the retrieval
-index all change what the agent does. Hash them together; if the version
-changes, the eval gate must pass against the new version before it ships.
-A prompt edit is a release, not a typo fix.
+The system prompt, the model, the tool schemas and the retrieval index (its text
+and its permissions) are hashed here; pass everything else that changes what the
+agent does as settings: guard and lockdown settings, effort, a policy version, a
+tool-code version. If the version changes, the eval gate must pass against the
+new version before it ships. A prompt edit is a release, not a typo fix.
 """
 
 import hashlib

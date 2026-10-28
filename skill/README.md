@@ -41,8 +41,8 @@ Each case was run twice on the same model with web access, once with the skill a
 | 1 | design an HR assistant; modernize a 2024 support agent; pick a model and SDK for 200 tools | 18 / 19 | 14 / 19 |
 | 2 | the same three, plus a copy of the skill with its snapshot backdated seven months | 24 / 26 | 22 / 26 |
 
-Without the skill, runs missed permission-aware retrieval, identity regression tests and idempotent writes, and quoted list prices. With a backdated snapshot, the skill still found the current MCP revision and SDK versions and listed every place its snapshot was wrong. Changes made after round 2 (advisory lookups, the practices register) have not been re-run yet.
+Without the skill, runs missed permission-aware retrieval, identity regression tests and idempotent writes, and quoted list prices. With a backdated snapshot, the skill still found the current MCP revision and SDK versions and listed every place its snapshot was wrong. Both rounds are one run per configuration, so read them as a direction; round 2 predates the advisory lookups, the practices register and the guards reference.
 
 <p align="center">
-  <img src="../docs/figures/eval_benchmark.png" alt="Eval results" width="820"/>
+  <img src="../docs/figures/skill-evals.png" alt="Share of graded expectations passed per task, with and without the skill, rounds 1 and 2" width="900"/>
 </p>

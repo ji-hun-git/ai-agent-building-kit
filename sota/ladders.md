@@ -10,6 +10,10 @@ Each row gives what the rung adds, the measured evidence (with its source and da
 
 The retriever still decides most of the result, even inside an agent that searches on its own: on BrowseComp-Plus, swapping BM25 for a strong embedder under the same GPT-5 agent raised accuracy from 55.9% to 70.1% with fewer searches ([arXiv 2508.06600](https://arxiv.org/abs/2508.06600)). Climb the retriever before you climb the reasoning around it.
 
+<p align="center">
+  <img src="../docs/figures/retrieval-failures.png" alt="Top-20 retrieval failure rate: embeddings 5.7%, contextual embeddings 3.7%, plus contextual BM25 2.9%, plus reranking 1.9%" width="900"/>
+</p>
+
 | # | Rung | What it adds | Evidence | Climb when | Template |
 | --- | --- | --- | --- | --- | --- |
 | 0 | Structure-aware chunks, ACL filter before ranking, BM25, abstain, cite | A grounded answer or an honest "not found", and no leak through search | — | Start here | `Index`, `search_tool` |
@@ -60,11 +64,15 @@ Not rungs. **Prompt-level defenses** (delimiters, spotlighting, sandwiching, "ig
 
 **Allow-lists are not enough on their own.** Data has left through allowed hosts by way of an open redirect (EchoLeak), Google Forms on `docs.google.com`, an expired domain still in a CSP, per-character signed proxy URLs (CamoLeak), `webhook.site` on a default list, and an attacker's API key sent to an allowed API ([Willison, markdown exfiltration](https://simonwillison.net/tag/markdown-exfiltration/)). Allow (method, host, path prefix), deny generic capture services, let the harness inject credentials, and reject any credential found in arguments the model built. Sanitize the fully assembled answer, not streamed chunks, and read reference-style link definitions too.
 
-**What the template guarantees, whatever the model does** (given correct code and tool labels): a tool or argument the policy denies never runs; after private and untrusted data, no outbound call runs without a person approving that exact call; in lockdown, no action runs after untrusted content without a person; no write runs twice; the listed invisible characters never reach the model; no answer or outbound message carries a credential, a protected identifier, or a URL to an unlisted host. **What it cannot guarantee:** correct answers or summaries (text-to-text injection is out of scope even for FIDES and CaMeL), safety within allowed actions, the judgement of the person approving, or classifier rates under adaptive attack.
+**What the template guarantees, whatever the model does** (given correct code and tool labels): a tool or argument the policy denies never runs; after private and untrusted data, no outbound call runs without a person approving that exact call; in lockdown, no action runs after untrusted content without a person; no write runs twice; the listed invisible characters never reach the model; no answer or outbound message carries a credential or identifier in the listed formats, or points at an unlisted host in any URL form the guard parses. Rules cover exactly what they list: add the credential formats your own systems issue. **What it cannot guarantee:** correct answers or summaries (text-to-text injection is out of scope even for FIDES and CaMeL), safety within allowed actions, the judgement of the person approving, or classifier rates under adaptive attack.
 
 ## Moderation of prompts, data and outputs
 
 Screening has four checkpoints, and the template's `Guard` runs at all of them: the user's prompt before the model sees it, documents at ingestion and every tool result, anything an outbound tool is about to send, and the answer before the user sees it. Rules run first because they cost a string scan and cannot be argued with; classifiers add what rules cannot see (harassment, self-harm, your own content policy). Classifiers are probabilities, and the injection ladder above shows what adaptive attackers do to probabilities: route on them, log them, never make them the only boundary.
+
+<p align="center">
+  <img src="../docs/figures/guard-checkpoints.png" alt="Four checkpoints: prompt guard, data guard, egress guard and output guard around the model and the toolbox" width="900"/>
+</p>
 
 | # | Rung | What it adds | Evidence | Climb when | Template |
 | --- | --- | --- | --- | --- | --- |

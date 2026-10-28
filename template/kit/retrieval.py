@@ -11,8 +11,10 @@ The 2026 pipeline at small scale, with no dependencies:
    merged with reciprocal rank fusion.
 4. Pass `rerank` to rescore the top `wide` candidates with a cross-encoder, and
    `min_score` to drop what it scores too low.
-5. Abstain when nothing clears the bar (query coverage without a reranker, the
-   reranker's score with one), and return sources so answers can cite them.
+5. Abstain when nothing clears the bar (query coverage for lexical search, the
+   embedder's similarity with `min_similarity`, the reranker's score with
+   `min_score`; calibrate the last two per model on a golden set), and return
+   sources so answers can cite them.
 
 Each hook is one rung of the ladder in sota/ladders.md. Swap `Index` for a real
 search service later; keep the five rules.
@@ -61,8 +63,24 @@ these those of to in on at for with about from by as and or but if then so what 
 where why can could would should will shall may might must there here many much say says tell please any some""".split())
 
 
+# Korean attaches particles to words ("연차가", "연차는"), so a Korean word also counts as its stem.
+PARTICLES = sorted("은 는 이 가 을 를 의 에 에서 에게 께 한테 으로 로 와 과 도 만 까지 부터 이나 나 이랑 랑 "
+                   "이에요 예요 이야 야 입니다 이다 요".split(), key=len, reverse=True)
+
+
+def terms(text: str) -> list[tuple[str, ...]]:
+    """Each word of the text with the forms it may match: itself, and for Korean its stem."""
+    words = []
+    for word in re.findall(r"[a-z0-9]+|[가-힣]+", text.lower()):
+        if word in STOPWORDS:
+            continue
+        stem = next((word[: -len(p)] for p in PARTICLES if len(word) > len(p) and word.endswith(p)), None)
+        words.append((word, stem) if stem else (word,))
+    return words
+
+
 def tokenize(text: str) -> list[str]:
-    return [t for t in re.findall(r"[a-z0-9]+|[가-힣]+", text.lower()) if t not in STOPWORDS]
+    return [form for forms in terms(text) for form in forms]
 
 
 def chunk(doc: Doc, max_words: int = 120) -> list[Chunk]:
@@ -92,15 +110,17 @@ class Index:
     def __init__(self, docs: list[Doc], embed: Callable[[str], list[float]] | None = None,
                  rerank: Callable[[str, list[str]], list[float]] | None = None,
                  situate: Callable[[Doc, Chunk], str] | None = None,
-                 wide: int = 50, min_score: float | None = None, k1: float = 1.5, b: float = 0.75):
+                 wide: int = 50, min_score: float | None = None, min_similarity: float | None = None,
+                 k1: float = 1.5, b: float = 0.75):
         self.chunks = [replace(c, context=situate(d, c)) if situate else c for d in docs for c in chunk(d)]
-        self.rerank, self.wide, self.min_score = rerank, wide, min_score
+        self.rerank, self.wide, self.min_score, self.min_similarity = rerank, wide, min_score, min_similarity
         self.tokens = [tokenize(c.body) for c in self.chunks]
         self.df = Counter(t for toks in self.tokens for t in set(toks))
         self.avgdl = sum(map(len, self.tokens)) / max(len(self.tokens), 1)
         self.k1, self.b, self.embed = k1, b, embed
         self.vectors = [embed(c.body) for c in self.chunks] if embed else None
-        self.version = hashlib.sha256("".join(c.body for c in self.chunks).encode()).hexdigest()[:12]
+        # Permissions are part of the version: making a document public is a behaviour change.
+        self.version = hashlib.sha256("".join(f"{sorted(c.acl)}|{c.body}" for c in self.chunks).encode()).hexdigest()[:12]
 
     def _bm25(self, query: list[str], i: int) -> float:
         tf, n, dl = Counter(self.tokens[i]), len(self.chunks), len(self.tokens[i])
@@ -114,33 +134,34 @@ class Index:
 
     def search(self, query: str, user: User, k: int = 3, min_coverage: float = 0.5) -> list[tuple[Chunk, float]]:
         visible = [i for i, c in enumerate(self.chunks) if PUBLIC in c.acl or user.roles & c.acl]
-        q = list(dict.fromkeys(tokenize(query)))
-        lexical = sorted(visible, key=lambda i: -self._bm25(q, i))
-        if not q or not lexical:
-            return []
-        # Without a reranker, abstain unless the best chunk covers enough of the query:
-        # a confident answer built on one shared word ("policy") is worse than "not found".
-        coverage = sum(t in set(self.tokens[lexical[0]]) for t in q) / len(q)
-        if not self.rerank and coverage < min_coverage:
-            return []
-        ranked = lexical
-        if not self.embed and not self.rerank:  # nothing else can vouch for a chunk with no query term
-            ranked = [i for i in lexical if self._bm25(q, i) > 0]
-        if self.embed:
+        words = terms(query)
+        q = list(dict.fromkeys(form for forms in words for form in forms))
+        scores = {i: self._bm25(q, i) for i in visible}
+        lexical = sorted((i for i in visible if scores[i] > 0), key=lambda i: -scores[i])
+        if self.embed:  # the dense leg can vouch for a chunk that shares no word with the query
             qv = self.embed(query)
-            dense = sorted(visible, key=lambda i: -_cosine(qv, self.vectors[i]))
-            rrf = Counter()
+            similarity = {i: _cosine(qv, self.vectors[i]) for i in visible}
+            dense = sorted((i for i in visible if self.min_similarity is None or similarity[i] >= self.min_similarity),
+                           key=lambda i: -similarity[i])
+            fused = Counter()
             for ranking in (lexical, dense):
                 for rank, i in enumerate(ranking):
-                    rrf[i] += 1 / (60 + rank)
-            ranked = [i for i, _ in rrf.most_common()]
+                    fused[i] += 1 / (60 + rank)
+            ranked, scores = [i for i, _ in fused.most_common()], fused
+        else:
+            # Lexical only: abstain unless the best chunk covers enough of the query's words. A
+            # confident answer built on one shared word ("policy") is worse than "not found".
+            best = set(self.tokens[lexical[0]]) if lexical else set()
+            covered = sum(any(form in best for form in forms) for forms in words) / max(len(words), 1)
+            if not lexical or (not self.rerank and covered < min_coverage):
+                return []
+            ranked = lexical
         if self.rerank:
             wide = ranked[: self.wide]
             scores = dict(zip(wide, self.rerank(query, [self.chunks[i].body for i in wide])))
             ranked = [i for i in sorted(wide, key=lambda i: -scores[i])
                       if self.min_score is None or scores[i] >= self.min_score]
-            return [(self.chunks[i], scores[i]) for i in ranked[:k]]
-        return [(self.chunks[i], self._bm25(q, i)) for i in ranked[:k]]
+        return [(self.chunks[i], scores[i]) for i in ranked[:k]]
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

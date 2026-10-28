@@ -8,7 +8,7 @@ The company "AI agent" in the source is one vendor model wrapped in eight contro
 
 The closing failure is the thesis. Every request-time control was in place, yet the agent answered "I'm ChatGPT" again, because a system-prompt change reached production without passing the evaluations. Controls on requests do not protect the agent from changes to itself; only an enforced release gate does.
 
-Source: the short explainer video *How Companies Build Their Own AI: From API Wrapper to Observable Agent* (narration plus 107 frames in 9 scenes). The video is not redistributed here; the analysis quotes only short on-screen labels.
+Source: the short explainer video *How Companies Build Their Own AI: From API Wrapper to Observable Agent* (narration and animation in 9 scenes). The video is not redistributed here; the analysis quotes only short on-screen labels.
 
 ## Build sequence: failure → control
 
@@ -60,7 +60,7 @@ One meta-class sits over all of them: **Failure mode**, an observed wrong behavi
 
 ## Relations
 
-![Every query crosses the controls; every change must cross the gate](../docs/figures/ontology-request-and-change-planes.png)
+![Every query crosses the controls; every change must cross the gate](../docs/figures/ontology-planes.png)
 
 A query runs down the centre: identity, input guards, cache, agent, output guard. Knowledge and tools attach to the agent from the sides, and observability spans every step. A release runs along the bottom; scene 9 is the dashed path that went around the gate.
 
@@ -83,21 +83,21 @@ A query runs down the centre: identity, input guards, cache, agent, output guard
 | Release gate | admits | Release | Only if the suite passed |
 | Control | mitigates | Failure mode | One row per build step |
 
-## What the frames add
+## What the animation adds
 
-The 107 frames are the video's animation, 9 scenes in narration order; they add three facts the narration leaves implicit. Persona and knowledge are named as separate things ("Persona is not knowledge"); access control sits at the tool boundary, not inside the agent; and the video stops at the cause ("System prompt change"), so "skipped the evals" comes from the narration alone.
+The animation runs in 9 scenes in narration order; it adds three facts the narration leaves implicit. Persona and knowledge are named as separate things ("Persona is not knowledge"); access control sits at the tool boundary, not inside the agent; and the video stops at the cause ("System prompt change"), so "skipped the evals" comes from the narration alone.
 
-| Scene | Frames | On-screen title | What the frame shows beyond the narration |
-| --- | --- | --- | --- |
-| 1 | 001–012 | Our "own" AI | "Company AI Assistant" is a box drawn around API Wrapper + ChatGPT: the brand is a container, not a property of the model |
-| 2 | 013–026 | Company AI | Subtitle turns from "Your name. Your tone." (018) into "Persona is not knowledge" (026); answer flagged HALLUCINATED POLICY, NO COMPANY FACTS |
-| 3 | 027–034 | RAG pipeline: from policy to answer | Policy documents → embeddings → vector database → assistant "Context ready"; the chunking step in the narration is not drawn |
-| 4 | 035–047 | Beyond answers: from conversation to action | Leave request and IT ticket → tool calling → MCP servers → HR (leave), Jira (IT ticket), Slack (messages); the box is still labelled "Chatbot" |
-| 5 | 048–060 | Who can see it? | Before (054): SALARY DISCLOSED, "No user-level restriction". After (060): OAuth: INTERN on the agent, RBAC: INTERN between agent and HR tool, SALARY: DENIED, USER-ALLOWED ONLY |
-| 6 | 061–073 | Prompt injection → Layered guardrails | Before (068): the typed instruction reaches "Sensitive Salary Data". After (073): two guards before the agent (input classifier, jailbreak detection), one after (PII redaction); SALARY: \[REDACTED\] |
-| 7 | 074–085 | One greeting. Big bill. | 10,000 employees, daily "Hi"; the assistant branches to a semantic cache ("Hi" hit) and a model router → small model (simple, low cost) or frontier model (hard) |
-| 8 | 086–101 | Make it observable → Test before release | "Instrument every step" → tool-call traces, prompt logs; evaluation suite: Passed → release gate: Passed; certified Grounded, Secure, Cost-efficient, Observable |
-| 9 | 102–107 | Identity check | "Who are you?" → "I'm ChatGPT.", tagged Identity regression; WHY IT HAPPENED: System prompt change |
+| Scene | On-screen title | What the scene shows beyond the narration |
+| --- | --- | --- |
+| 1 | Our "own" AI | "Company AI Assistant" is a box drawn around API Wrapper + ChatGPT: the brand is a container, not a property of the model |
+| 2 | Company AI | Subtitle turns from "Your name. Your tone." into "Persona is not knowledge"; answer flagged HALLUCINATED POLICY, NO COMPANY FACTS |
+| 3 | RAG pipeline: from policy to answer | Policy documents → embeddings → vector database → assistant "Context ready"; the chunking step in the narration is not drawn |
+| 4 | Beyond answers: from conversation to action | Leave request and IT ticket → tool calling → MCP servers → HR (leave), Jira (IT ticket), Slack (messages); the box is still labelled "Chatbot" |
+| 5 | Who can see it? | Before: SALARY DISCLOSED, "No user-level restriction". After: OAuth: INTERN on the agent, RBAC: INTERN between agent and HR tool, SALARY: DENIED, USER-ALLOWED ONLY |
+| 6 | Prompt injection → Layered guardrails | Before: the typed instruction reaches "Sensitive Salary Data". After: two guards before the agent (input classifier, jailbreak detection), one after (PII redaction); SALARY: \[REDACTED\] |
+| 7 | One greeting. Big bill. | 10,000 employees, daily "Hi"; the assistant branches to a semantic cache ("Hi" hit) and a model router → small model (simple, low cost) or frontier model (hard) |
+| 8 | Make it observable → Test before release | "Instrument every step" → tool-call traces, prompt logs; evaluation suite: Passed → release gate: Passed; certified Grounded, Secure, Cost-efficient, Observable |
+| 9 | Identity check | "Who are you?" → "I'm ChatGPT.", tagged Identity regression; WHY IT HAPPENED: System prompt change |
 
 Scene 6 leaves one question open. After scene 5, the HR tool already filters by the caller's role, so an employee without salary rights could not get everyone's salary by injection alone; the scene only holds if that employee had HR rights, or if the salary path bypassed RBAC (see Gaps).
 
@@ -142,6 +142,6 @@ The narrative adds each layer on its own; most remaining risk sits where two lay
 | Logs as a new leak | Accountability × Authority | Prompt logs and traces hold salaries and PII | Same RBAC and redaction on logs as on answers; a retention limit |
 | Injection after RBAC | Integrity × Authority | If the tool enforces the caller's role, injection cannot exceed it; scene 6 implies a privileged path | Find and remove any service-account path that skips the user's identity |
 
-Open question: whether the scene-6 salary lookup ran under the user's token or a shared service account; the frames do not show it.
+Open question: whether the scene-6 salary lookup ran under the user's token or a shared service account; the video does not show it.
 
 How to build the same agent with 2026 methods: [Agent 101](agent-101.md).

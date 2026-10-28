@@ -36,7 +36,7 @@ class Tool:
     required: tuple = ()
     private: bool = False        # returns data not everyone may see
     untrusted: bool = False      # returns text written by others (docs, email, web)
-    outbound: bool = False       # can carry data outside the session
+    outbound: bool = False       # can carry data to anyone other than the user
     approval: bool | None = None # override for writes; irreversible always asks
 
     def __post_init__(self):
@@ -93,7 +93,7 @@ class Toolbox:
 
     def schemas(self, user: User) -> list[dict]:
         """Only tools this user could ever call. Sorted, so the prefix is stable."""
-        visible = [t for t in self.tools.values() if self.policy.check(user, t.name, {})[0]]
+        visible = [t for t in self.tools.values() if self.policy.visible(user, t.name)]
         return [t.schema() for t in sorted(visible, key=lambda t: t.name)]
 
     def key(self, session: Session, call: Call) -> str:
@@ -121,6 +121,10 @@ class Toolbox:
         if not approved and tool.needs_approval:
             raise NeedsApproval(call, f"{tool.name} is a {tool.kind} action")
 
+        # Exposure starts when the tool runs, not when it succeeds: an error message can carry
+        # private or untrusted text too.
+        session.taint.private |= tool.private
+        session.taint.untrusted |= tool.untrusted
         try:
             out = tool.fn(user=user, **call.args)
         except Exception as e:  # the model gets a sentence, the trace gets the type
@@ -129,8 +133,6 @@ class Toolbox:
         text = out if isinstance(out, str) else dumps(out)
         if len(text) > self.max_chars:
             text = text[: self.max_chars] + f"\n[truncated at {self.max_chars} characters; narrow the request]"
-        session.taint.private |= tool.private
-        session.taint.untrusted |= tool.untrusted
         if tool.kind != "read":
             session.ledger[key] = text
         return Result(text)

@@ -62,7 +62,7 @@ Let provider prompt caching do most of the work: render every request as a stabl
 | Fact **[volatile]** | Snapshot (2026-10-27) | Where to check (URL) |
 | --- | --- | --- |
 | Anthropic caching modes | Automatic via top-level `cache_control`, or ≤ 4 explicit breakpoints; prefix order tools → system → messages | https://platform.claude.com/docs/en/build-with-claude/prompt-caching |
-| Anthropic TTL and minimums | 5 min default (refreshed on use), `ttl: "1h"` option; minimum 512 tokens on 5.x models, up to 4,096 on older ones | https://platform.claude.com/docs/en/build-with-claude/prompt-caching |
+| Anthropic TTL and minimums | 5 min default (refreshed on use), `ttl: "1h"` option; minimum 512 tokens on most 5.x models, 1,024 on Sonnet 5, up to 4,096 on older ones | https://platform.claude.com/docs/en/build-with-claude/prompt-caching |
 | Anthropic invalidation table | Tool definitions → all levels; web search, citations or speed toggle → system + messages; `tool_choice`, images → messages; thinking and effort → messages (model-specific above) | https://platform.claude.com/docs/en/build-with-claude/prompt-caching |
 | Anthropic pre-warm | `max_tokens: 0`; rejected with streaming, `thinking.type: "enabled"`, forced `tool_choice`, `output_config.format`, and inside batches | https://platform.claude.com/docs/en/build-with-claude/prompt-caching |
 | Cache-preserving mid-session changes | `inline-tools-2026-09-15`; `mid-conversation-output-config-2026-07-01`; OpenAI `configuration_update` (GPT-6) | https://platform.claude.com/docs/en/build-with-claude/effort · https://developers.openai.com/api/docs/guides/prompt-caching |

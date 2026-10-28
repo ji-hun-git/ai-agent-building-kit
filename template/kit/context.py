@@ -36,6 +36,7 @@ class Session:
     taint: Taint = field(default_factory=Taint)
     ledger: dict = field(default_factory=dict)  # idempotency key -> result of a write
     pending: dict | None = None                  # a tool call waiting for a person
+    steps: int = 0                               # model calls since the user last spoke
     _messages: list = field(default_factory=list)
 
     def __post_init__(self):
@@ -49,12 +50,16 @@ class Session:
         self._messages.append(message)
 
     def clear_old_tool_results(self, keep_last: int = 6) -> int:
-        """Replace all but the last `keep_last` tool results with a reload pointer."""
+        """Replace all but the last `keep_last` tool results with a reload pointer.
+
+        This edits history. Models that bind their reasoning to the exact history (Claude's
+        preserved thinking, for accounts created from 2026-08-31) drop or reject the reasoning
+        after an edited turn; with them, use the provider's own context editing or compaction."""
         tool_idx = [i for i, m in enumerate(self._messages) if m["role"] == "tool"]
         cleared = 0
         for i in tool_idx[:-keep_last] if keep_last else tool_idx:
             m = self._messages[i]
-            if m.get("cleared"):
+            if m.get("cleared") or m.get("is_error"):  # errors are short, and reloading a refusal misleads
                 continue
             pointer = f"[cleared to save context; call {m['name']} with {dumps(m['args'])} to reload]"
             self._messages[i] = {**m, "content": pointer, "cleared": True}

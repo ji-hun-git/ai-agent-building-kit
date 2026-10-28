@@ -5,7 +5,7 @@ description: Design, build, review or upgrade AI agents and LLM applications on 
 
 # Building AI agents
 
-A reference stack for enterprise-grade agents, snapshot verified **2026-10-27**, plus a workflow that keeps it current. The agent ecosystem changes monthly: in 2026 alone MCP went stateless, every major vendor shipped a new model family, and prompt injection was shown to beat every published detector. Your training data and this snapshot are both aging the moment you read them. So the first job is always to check what is current, and the second is to build in an order where each layer closes a known failure.
+A reference stack for enterprise-grade agents, snapshot verified **2026-10-28**, plus a workflow that keeps it current. The agent ecosystem changes monthly: in 2026 alone MCP went stateless, every major vendor shipped a new model family, and prompt injection was shown to beat every published detector. Your training data and this snapshot are both aging the moment you read them. So the first job is always to check what is current, and the second is to build in an order where each layer closes a known failure.
 
 ## How to use this skill
 

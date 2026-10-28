@@ -11,11 +11,15 @@ With a Guard, the prompt is screened before the model sees it, every tool result
 before it enters the context, every outbound call before it runs, and the answer
 before the user sees it (see guard.py).
 
-Models are plain callables: model(system, messages, tools) -> Reply. Three are
+Models are plain callables: model(system, messages, tools) -> Reply. Four are
 included: a scripted stand-in for tests, and thin adapters for the Anthropic
-Messages API and any OpenAI-compatible Chat Completions API (OpenAI, vLLM,
-SGLang, Ollama). Model names are configuration, never code; check the current
-ones with skill/building-ai-agents/scripts/check_freshness.py.
+Messages API, the OpenAI Responses API, and any Chat Completions server (vLLM,
+SGLang, Ollama, Gemini's OpenAI-compatible endpoint). Adapters keep the
+provider's own output on each assistant turn (thinking blocks, reasoning items)
+and send it back unchanged, because current reasoning models reject or lose a
+history whose reasoning was dropped or edited. Model names are configuration,
+never code; check the current ones with
+skill/building-ai-agents/scripts/check_freshness.py.
 """
 
 import json
@@ -35,6 +39,8 @@ class Reply:
     text: str = ""
     calls: list[Call] = field(default_factory=list)
     usage: dict = field(default_factory=dict)
+    raw: list = field(default_factory=list)  # the provider's own output, sent back unchanged
+    via: str = ""                            # the adapter that produced `raw`
 
 
 @dataclass
@@ -58,15 +64,21 @@ class Agent:
         return Session(system=self.system, tools=self.toolbox.schemas(user))
 
     def run(self, session: Session, user: User, text: str) -> str | Pending:
+        if session.pending:  # the user moved on: a call waiting for approval never runs later
+            pending, session.pending = session.pending, None
+            for call in [pending["call"], *pending["queue"]]:
+                session.append(_tool_msg(call, "Not done: the user moved on without approving it.", is_error=True))
+        session.steps = 0
         verdict = self.guard.prompt(text) if self.guard else None
         text = verdict.text if verdict else text
         with self.tracer.span("invoke_agent", **{"session.id": session.id, "content.input": text}) as span:
-            session.append({"role": "user", "content": text})
             if verdict:
                 span["guard.prompt"] = verdict.labels
-                if verdict.blocked:  # the model never sees a request the guard refused
+                if verdict.blocked:  # the model never sees a request the guard refused, now or later
+                    session.append({"role": "user", "content": "[a request the content guard refused]"})
                     session.append({"role": "assistant", "content": self.guard.refusal, "calls": []})
                     return self.guard.refusal
+            session.append({"role": "user", "content": text})
             return self._loop(session, user, queue=[])
 
     def resume(self, session: Session, user: User, approved: bool) -> str | Pending:
@@ -81,7 +93,7 @@ class Agent:
             return self._loop(session, user, queue)
 
     def _loop(self, session: Session, user: User, queue: list[Call]) -> str | Pending:
-        for _ in range(self.max_steps):
+        while True:
             while queue:  # finish the calls of the previous reply first
                 call = queue.pop(0)
                 try:
@@ -89,6 +101,11 @@ class Agent:
                 except NeedsApproval as e:
                     session.pending = {"call": call, "queue": queue}
                     return Pending(call, e.reason)
+            if session.steps >= self.max_steps:  # counted across approvals, so resuming cannot loop
+                text = "I stopped because this took too many steps. Please narrow the request."
+                session.append({"role": "assistant", "content": text, "calls": []})
+                return text
+            session.steps += 1
             with self.tracer.span("chat", **{"gen_ai.request.model": self.model_id}) as span:
                 reply = self.model(session.system, session.messages, session.tools)
                 span.update({f"gen_ai.usage.{k}": v for k, v in reply.usage.items()})
@@ -98,12 +115,13 @@ class Agent:
                     verdict = self.guard.output(text)
                     span["guard.output"] = verdict.labels
                     text = self.guard.withheld if verdict.blocked else verdict.text
-            session.append({"role": "assistant", "content": text,
-                            "calls": [c.__dict__ for c in reply.calls]})
+            message = {"role": "assistant", "content": text, "calls": [c.__dict__ for c in reply.calls]}
+            if reply.raw:  # the model's own output, which it already has; the guard decides what the user sees
+                message.update(raw=reply.raw, via=reply.via)
+            session.append(message)
             if not reply.calls:
                 return text
             queue = list(reply.calls)
-        return "I stopped because this took too many steps. Please narrow the request."
 
     def _execute(self, session: Session, user: User, call: Call, approved: bool = False) -> None:
         tool = self.toolbox.tools.get(call.name)
@@ -116,11 +134,11 @@ class Agent:
                                 "Do not retry; tell the user what was blocked.", True)
             else:
                 result = self.toolbox.execute(call, user, session, approved=approved)
-                if self.guard and not result.is_error:
+                if self.guard:  # error messages too: a failing tool can echo what it read
                     verdict = self.guard.data(result.content)
                     span["guard.data"] = verdict.labels
                     result = Result("This result was withheld by the content guard." if verdict.blocked
-                                    else verdict.text)
+                                    else verdict.text, result.is_error)
             span["tool.is_error"] = result.is_error
         session.append(_tool_msg(call, result.content, result.is_error))
 
@@ -131,6 +149,28 @@ def _tool_msg(call: Call, content: str, is_error: bool = False) -> dict:
 
 
 # ---------------------------------------------------------------- models
+
+def model_from(spec: str, effort: str | None = None):
+    """'anthropic:<id>' (Messages API), 'openai:<id>' (Responses API) or 'openai:<id>@<base_url>'
+    (Chat Completions, for vLLM, SGLang, Ollama or Gemini's OpenAI-compatible endpoint)."""
+    provider, _, rest = spec.partition(":")
+    model_id, _, base = rest.partition("@")
+    if provider == "anthropic":
+        return Anthropic(model_id, effort=effort)
+    if provider == "openai":
+        return OpenAICompatible(model_id, base) if base else OpenAIResponses(model_id, effort=effort)
+    raise ValueError(f"unknown provider {provider!r}; use anthropic:<id> or openai:<id>[@base_url]")
+
+
+def _args(text: str | None) -> dict:
+    """Tool arguments from JSON. Malformed or non-object JSON becomes no arguments, so the toolbox
+    answers with a missing-argument sentence instead of the loop crashing."""
+    try:
+        value = json.loads(text or "{}")
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
 
 class Scripted:
     """Returns replies from a list; for tests and offline demos."""
@@ -143,23 +183,32 @@ class Scripted:
 
 
 class Anthropic:
-    """Anthropic Messages API. The system prompt is marked cacheable."""
+    """Anthropic Messages API. The system prompt is marked cacheable, and each assistant turn goes
+    back exactly as it came, thinking blocks included: current models tie those blocks to the
+    conversation and reject or lose a history that drops or edits them."""
 
-    def __init__(self, model: str, max_tokens: int = 2048, api_key: str | None = None,
-                 url: str = "https://api.anthropic.com/v1/messages", version: str = "2023-06-01"):
-        self.model, self.max_tokens, self.url, self.version = model, max_tokens, url, version
+    def __init__(self, model: str, max_tokens: int = 16000, effort: str | None = None, api_key: str | None = None,
+                 url: str = "https://api.anthropic.com/v1/messages", version: str = "2026-10-21"):
+        self.model, self.max_tokens, self.effort, self.url, self.version = model, max_tokens, effort, url, version
         self.api_key = api_key or os.environ["ANTHROPIC_API_KEY"]
 
     def __call__(self, system, messages, tools) -> Reply:
         body = {
             "model": self.model, "max_tokens": self.max_tokens,
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            "tools": tools, "messages": _to_anthropic(messages),
+            "messages": _to_anthropic(messages),
         }
+        if tools:
+            body["tools"] = tools
+        if self.effort:
+            body["output_config"] = {"effort": self.effort}
         out = post(self.url, {"x-api-key": self.api_key, "anthropic-version": self.version}, body)
-        text = "".join(b["text"] for b in out["content"] if b["type"] == "text")
-        calls = [Call(b["id"], b["name"], b["input"]) for b in out["content"] if b["type"] == "tool_use"]
-        return Reply(text, calls, out.get("usage", {}))
+        blocks = out.get("content", [])
+        text = "".join(b["text"] for b in blocks if b["type"] == "text")
+        if out.get("stop_reason") == "refusal" and not text:
+            text = "I can't help with that request."
+        calls = [Call(b["id"], b["name"], b["input"]) for b in blocks if b["type"] == "tool_use"]
+        return Reply(text, calls, out.get("usage", {}), raw=blocks, via="anthropic")
 
 
 def _to_anthropic(messages) -> list[dict]:
@@ -168,9 +217,13 @@ def _to_anthropic(messages) -> list[dict]:
         if m["role"] == "user":
             out.append({"role": "user", "content": m["content"]})
         elif m["role"] == "assistant":
+            if m.get("via") == "anthropic":  # the model's own blocks, unchanged
+                out.append({"role": "assistant", "content": m["raw"]})
+                continue
             blocks = [{"type": "text", "text": m["content"]}] if m["content"] else []
             blocks += [{"type": "tool_use", "id": c["id"], "name": c["name"], "input": c["args"]} for c in m["calls"]]
-            out.append({"role": "assistant", "content": blocks})
+            if blocks:  # an empty assistant turn is rejected; leaving it out keeps the history valid
+                out.append({"role": "assistant", "content": blocks})
         else:  # tool results ride in a user turn; consecutive ones share it
             block = {"type": "tool_result", "tool_use_id": m["id"], "content": m["content"], "is_error": m["is_error"]}
             if out and out[-1]["role"] == "user" and isinstance(out[-1]["content"], list):
@@ -180,21 +233,66 @@ def _to_anthropic(messages) -> list[dict]:
     return out
 
 
+class OpenAIResponses:
+    """OpenAI Responses API, OpenAI's recommended interface (GPT-6 Astra calls tools only here).
+    Stateless (store=false): reasoning comes back encrypted and goes back with the turn it belongs to."""
+
+    def __init__(self, model: str, effort: str | None = None, api_key: str | None = None,
+                 url: str = "https://api.openai.com/v1/responses"):
+        self.model, self.effort, self.url = model, effort, url
+        self.api_key = api_key or os.environ["OPENAI_API_KEY"]
+
+    def __call__(self, system, messages, tools) -> Reply:
+        body = {"model": self.model, "instructions": system, "input": _to_responses(messages),
+                "store": False, "include": ["reasoning.encrypted_content"]}
+        if tools:
+            body["tools"] = [{"type": "function", "name": t["name"], "description": t["description"],
+                              "parameters": t["input_schema"], "strict": False} for t in tools]
+        if self.effort:
+            body["reasoning"] = {"effort": self.effort}
+        out = post(self.url, {"authorization": f"Bearer {self.api_key}"}, body)
+        items = out.get("output", [])
+        text = "".join(part.get("text", "") for item in items if item["type"] == "message"
+                       for part in item.get("content", []) if part.get("type") == "output_text")
+        calls = [Call(i["call_id"], i["name"], _args(i.get("arguments"))) for i in items if i["type"] == "function_call"]
+        return Reply(text, calls, out.get("usage", {}), raw=items, via="openai-responses")
+
+
+def _to_responses(messages) -> list[dict]:
+    out = []
+    for m in messages:
+        if m["role"] == "user":
+            out.append({"role": "user", "content": m["content"]})
+        elif m["role"] == "assistant":
+            if m.get("via") == "openai-responses":  # reasoning, calls and text, in the order they came
+                out.extend(m["raw"])
+                continue
+            if m["content"]:
+                out.append({"role": "assistant", "content": m["content"]})
+            out += [{"type": "function_call", "call_id": c["id"], "name": c["name"], "arguments": dumps(c["args"])}
+                    for c in m["calls"]]
+        else:
+            out.append({"type": "function_call_output", "call_id": m["id"], "output": m["content"]})
+    return out
+
+
 class OpenAICompatible:
-    """Chat Completions API: OpenAI, or a self-hosted vLLM / SGLang / Ollama via base_url."""
+    """Chat Completions: self-hosted vLLM, SGLang or Ollama, Gemini's OpenAI-compatible endpoint, and
+    any other server that speaks it. For OpenAI's own current models use OpenAIResponses: from
+    GPT-5.4 on, Chat Completions calls tools only at reasoning effort none."""
 
     def __init__(self, model: str, base_url: str = "https://api.openai.com/v1", api_key: str | None = None):
         self.model, self.base_url = model, base_url.rstrip("/")
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "none")
 
     def __call__(self, system, messages, tools) -> Reply:
-        body = {"model": self.model, "messages": [{"role": "system", "content": system}] + _to_openai(messages),
-                "tools": [{"type": "function", "function": {"name": t["name"], "description": t["description"],
-                                                            "parameters": t["input_schema"]}} for t in tools]}
+        body = {"model": self.model, "messages": [{"role": "system", "content": system}] + _to_openai(messages)}
+        if tools:
+            body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
+                                                               "parameters": t["input_schema"]}} for t in tools]
         out = post(f"{self.base_url}/chat/completions", {"authorization": f"Bearer {self.api_key}"}, body)
         msg = out["choices"][0]["message"]
-        calls = [Call(c["id"], c["function"]["name"], json.loads(c["function"]["arguments"] or "{}"))
-                 for c in msg.get("tool_calls") or []]
+        calls = [Call(c["id"], c["function"]["name"], _args(c["function"]["arguments"])) for c in msg.get("tool_calls") or []]
         return Reply(msg.get("content") or "", calls, out.get("usage", {}))
 
 

@@ -17,6 +17,7 @@ is closed by code rather than by prompt:
 """
 
 import hashlib
+import re
 from pathlib import Path
 
 from kit import (Agent, Doc, Guard, Index, Policy, Tool, Toolbox, Tracer, anyone, bundle, load_prompt,
@@ -30,13 +31,18 @@ PAY_BANDS = {"ceo": "P9", "u-intern": "P2", "u-hr": "P5"}
 
 
 def load_docs(folder: Path) -> list[Doc]:
+    """Markdown files; a first line `<!-- acl: role ... -->` restricts a file to those roles.
+    An ACL line anywhere else, or one that does not parse, is an error: failing open would
+    publish a restricted document."""
     docs = []
     for path in sorted(folder.glob("*.md")):
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")  # -sig: a byte-order mark must not hide the ACL line
         acl = frozenset({"*"})
-        if text.startswith("<!-- acl:"):
-            first, text = text.split("\n", 1)
-            acl = frozenset(first.removeprefix("<!-- acl:").removesuffix("-->").split())
+        header = re.match(r"<!--\s*acl:\s*([\w\s-]+?)\s*-->[ \t]*\r?\n", text)
+        if header:
+            acl, text = frozenset(header.group(1).split()), text[header.end():]
+        elif re.search(r"<!--\s*acl\b", text, re.I):
+            raise ValueError(f"{path.name}: an ACL line must be the first line, as <!-- acl: role -->")
         title = text.lstrip("# ").splitlines()[0]
         docs.append(Doc(path.stem, title, text, acl))
     return docs
@@ -60,6 +66,7 @@ def tools(index: Index) -> list[Tool]:
              {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"},
               "kind": {"type": "string", "enum": ["annual", "sick"]}},
              fn=request_leave, kind="write", required=("start", "end")),
+        # A message to the user themself is not outbound: the data stays with the person it belongs to.
         Tool("notify_me", "Send the user a direct message, e.g. a confirmation.",
              {"text": {"type": "string"}}, fn=lambda user, text: f"Sent to @{user.id}.",
              kind="write", approval=False, required=("text",)),

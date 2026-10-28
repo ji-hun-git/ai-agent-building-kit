@@ -6,9 +6,9 @@ Jihun Chae · verified 2026-10-27
 
 Build the agent on a vendor harness, give it permission-filtered retrieval and gated tools, sandbox the whole request path, trace every step, and ship every change through a required eval gate. The ten steps below follow that order; each ends with what it replaces from the build in the [ontology](ontology.md).
 
-![A 2026 agent: ten build steps, one gated path to production](../docs/figures/agent-stack-2026.png)
+![A 2026 agent: ten build steps, one gated path to production](../docs/figures/hero.png)
 
-A request runs down the centre and pulls knowledge from the left and tools from the right, all inside a sandbox. Every change runs along the bottom, and failures found in production feed back into the eval gate.
+A request runs down the centre: identity, input guard, prompt cache, the agent harness, output guard. Knowledge attaches from the left and tools from the right, traces span every step, and every change runs along the bottom through a gate with no skip path. The small numbers are the steps of this guide.
 
 ## Step 1 · Model and agent loop
 
@@ -198,11 +198,11 @@ Every row, with its sources, is in [practices-register.md](../skill/building-ai-
 
 This guide is also packaged as the [`building-ai-agents`](../skill/building-ai-agents/SKILL.md) Agent Skill, which coding agents such as Claude Code and Codex load from `~/.claude/skills` or `~/.codex/skills` (see [scripts/install-skill.ps1](../scripts/install-skill.ps1)). It loads on its own when an agent is asked to build, design, review or upgrade an AI agent, and it does not trust its own snapshot.
 
-1. **Freshness check first.** A script checks 31 SDKs, protocol packages and specs against the 2026-10-27 snapshot (and vendor model lists when API keys are allowed), then the agent searches vendor release notes, deprecation pages and current methods before relying on anything tagged volatile.
+1. **Freshness check first.** A script checks 31 SDKs, protocol packages and specs against the 2026-10-28 snapshot (and vendor model lists when API keys are allowed), then the agent searches vendor release notes, deprecation pages and current methods before relying on anything tagged volatile.
 2. **Steps 0–7.** Freshness check → agent spec with build-or-buy check → simplest architecture → eval plan before code → the ten layers in order → threat model → gated release → hand-off with a stack lock.
-3. **Ten non-negotiables**, 14 reference files (one per layer, plus architecture patterns, agent UX design, a failure-mode audit and a practices register) and 4 templates (spec, eval plan, threat model, stack lock).
+3. **Ten non-negotiables**, 15 reference files (one per layer, plus architecture patterns, agent UX design, guards and moderation, a failure-mode audit and a practices register) and 4 templates (spec, eval plan, threat model, stack lock).
 
-On three test briefs, runs with the skill passed 18 of 19 checks; runs without it passed 14, missing permission-aware retrieval, identity regression tests and write idempotency, and quoting list prices.
+On three test briefs, runs with the skill passed 18 of 19 checks; runs without it passed 14, missing permission-aware retrieval, identity regression tests and write idempotency, and quoting list prices. A second round adding a stale-snapshot case scored 24 of 26 against 22: one run per configuration, so read both rounds as a direction, not a measurement.
 
 ## Sources and caveats
 

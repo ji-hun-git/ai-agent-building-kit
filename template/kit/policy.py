@@ -31,10 +31,21 @@ class Policy:
 
     def __init__(self):
         self.rules: dict[str, Rule] = {}
+        self.visibility: dict[str, Rule] = {}
 
-    def allow(self, tool: str, rule: Rule) -> "Policy":
+    def allow(self, tool: str, rule: Rule, visible: Rule | None = None) -> "Policy":
+        """`visible` decides whether the tool appears in a user's tool list at all. It defaults to
+        the rule itself checked with no arguments, which hides tools whose rule depends on arguments
+        (only_values, for one); pass visible=anyone for those."""
         self.rules[tool] = rule
+        if visible:
+            self.visibility[tool] = visible
         return self
+
+    def visible(self, user: "User", tool: str) -> bool:
+        if tool not in self.rules:
+            return False
+        return self.visibility.get(tool, self.rules[tool])(user, {})
 
     def check(self, user: User, tool: str, args: dict) -> tuple[bool, str]:
         rule = self.rules.get(tool)

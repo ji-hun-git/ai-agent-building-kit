@@ -42,7 +42,8 @@ The model in that run is a rule-based stand-in that obeys a planted instruction 
 ```
 python -m unittest
 python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3
-python -m examples.hr --model anthropic:<model-id>        # or openai:<model-id>[@base_url]
+python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model anthropic:<model-id>
+python -m examples.hr --model anthropic:<model-id>        # or openai:<model-id>, or openai:<model-id>@<base_url>
 ```
 
 ## The ten layers
@@ -85,7 +86,7 @@ sh scripts/install-skill.sh                                            # macOS, 
 Once installed, a coding agent asked to build, design or review an agent follows Steps 0 to 7: check versions, advisories and model lineups live; write the spec (including build or buy); pick the simplest architecture; write the evals; build the ten layers; threat-model; ship through the gate. See [skill/README.md](skill/README.md) for what it contains and how it was evaluated.
 
 <p align="center">
-  <img src="docs/figures/skill_workflow.png" alt="Skill workflow" width="900"/>
+  <img src="docs/figures/skill-workflow.png" alt="The skill's steps: 0 freshness check, 1 frame the job, 2 simplest architecture, 3 evals first, 4 build the ten layers, 5 threat model, 6 release through the gate, 7 hand off" width="900"/>
 </p>
 
 ## Layout
@@ -96,7 +97,7 @@ template/    kit/ (the harness and its guard), examples/hr/ (a worked agent), te
 skill/       building-ai-agents/ (SKILL.md, references/, templates/, scripts/, evals/)
 sota/        README.md (state of the art, dated), ladders.md (upgrade ladders), repos.md (reference repositories)
 docs/        figures
-scripts/     install-skill.ps1, install-skill.sh, make_hero.py, make_figures.py, md_to_formats.py
+scripts/     install-skill.ps1, install-skill.sh, make_figures.py (every figure, from code)
 ```
 
 ## License
