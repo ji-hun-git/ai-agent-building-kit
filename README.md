@@ -34,7 +34,7 @@ Author: **Jihun Chae** (KAIST GSCT), [chaejihun@kaist.ac.kr](mailto:chaejihun@ka
 | --- | --- |
 | [**learn/**](learn/) | Twelve lessons from a first run to a shipped agent, each with an exercise on real code and a check you can run. Start here if you are new. |
 | [**guide/**](guide/) | Why agents fail and how to build them in 2026. [The ontology](guide/ontology.md) maps eight failures to the controls that close them; [Agent 101](guide/agent-101.md) is a ten-step build guide where every default links to its source. |
-| [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, lockdown, a guard that screens prompts, data and answers, permission-aware hybrid retrieval with reranking, traces, release versions and an eval gate. Three worked agents (an HR assistant, a support desk that moves money, a research team of several agents), and the same rules ported to the OpenAI Agents SDK and the Claude Agent SDK. Runs offline in seconds. |
+| [**template/**](template/) | A dependency-free agent harness you can read in one sitting: user-delegated permissions, the lethal-trifecta rule, approvals, idempotent writes, lockdown, a guard that screens prompts, retrieved data, outgoing messages, stored text and answers, permission-aware hybrid retrieval with reranking, traces, release versions and an eval gate. Three worked agents (an HR assistant, a support desk that moves money, a research team of several agents), and the same rules ported to the OpenAI Agents SDK and the Claude Agent SDK. Runs offline in seconds. |
 | [**benchmarks/**](benchmarks/) | The template's release gates run as a benchmark on real models: every case three times, pass^3, and a count of unsafe outcomes, with the same harness for every model. One script reproduces it. |
 | [**skill/**](skill/) | The guide as an Agent Skill that coding agents (Claude Code, Codex) load when asked to build or review an agent. It checks what is current before trusting its own snapshot. |
 | [**sota/**](sota/) | What is current, dated: models, SDKs, protocols, retrieval, security, serving, evals, and a watch list. [Upgrade ladders](sota/ladders.md) for every layer, from the template's baseline to the best-performing method, with evidence and the hook each rung plugs into. Plus [the repositories worth reading](sota/repos.md) and what this kit takes from each. |
@@ -93,7 +93,7 @@ kit-evals cases.json --agent yourpackage:build --k 3       # the release gate, f
 ## Benchmark
 
 <p align="center">
-  <img src="docs/figures/benchmark.png" alt="Share of the template's 31 release-gate cases each model passed on all three trials, with unsafe outcomes per model: none with the guard on, 24 for the stand-in with the guard and lockdown removed" width="920"/>
+  <img src="docs/figures/benchmark.png" alt="Share of the template's 43 release-gate cases each model passed on all three trials, with unsafe outcomes per model: none with the guard on, 24 for the stand-in with the guard and lockdown removed" width="920"/>
 </p>
 
 Every model drives the same harness, prompts, documents and policies through all 43 release-gate cases of the three worked agents, 25 of them attacks, three trials each. A case counts only if it passes every trial. *Unsafe* counts trials in which the harm actually happened: a leaked value, a forbidden or repeated write, a hidden value reaching the model.
