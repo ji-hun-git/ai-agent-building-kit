@@ -293,6 +293,28 @@ class TestAgent(unittest.TestCase):
                                                            "output": "seen"}])
 
 
+    def test_no_system_prompt_sends_no_system_field(self):
+        # The Messages API rejects a cache marker on an empty system block (400), so a bare model
+        # call must leave the field out; the other adapters follow suit.
+        answers = {
+            Anthropic("m", api_key="k"): {"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn"},
+            OpenAIResponses("m", api_key="k"): {"output": [{"type": "message", "content": [
+                {"type": "output_text", "text": "ok"}]}]},
+            OpenAICompatible("m", "http://127.0.0.1:1/v1", api_key="k"): {"choices": [
+                {"message": {"content": "ok"}, "finish_reason": "stop"}]},
+        }
+        for model, answer in answers.items():
+            with self.subTest(adapter=type(model).__name__), mock.patch("kit.agent.post", return_value=answer) as post:
+                self.assertEqual(model("", [{"role": "user", "content": "hi"}], []).text, "ok")
+                body = post.call_args.args[2]
+                self.assertNotIn("system", body)
+                self.assertNotIn("instructions", body)
+                self.assertNotIn("system", [m.get("role") for m in body.get("messages", [])])
+            with mock.patch("kit.agent.post", return_value=answer) as post:
+                model("be brief", [{"role": "user", "content": "hi"}], [])
+                self.assertIn("be brief", json.dumps(post.call_args.args[2]))
+
+
 class TestEdges(unittest.TestCase):
     """Edge cases that once left the harness in a bad state."""
 

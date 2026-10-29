@@ -224,11 +224,9 @@ class Anthropic:
         self.api_key = key_for(url, "api.anthropic.com", "ANTHROPIC_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
-        body = {
-            "model": self.model, "max_tokens": self.max_tokens,
-            "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            "messages": _to_anthropic(messages),
-        }
+        body = {"model": self.model, "max_tokens": self.max_tokens, "messages": _to_anthropic(messages)}
+        if system:  # the API rejects a cache marker on an empty block, so no prompt means no system field
+            body["system"] = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
         if tools:
             body["tools"] = tools
         if self.effort:
@@ -275,8 +273,10 @@ class OpenAIResponses:
         self.api_key = key_for(url, "api.openai.com", "OPENAI_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
-        body = {"model": self.model, "instructions": system, "input": _to_responses(messages),
+        body = {"model": self.model, "input": _to_responses(messages),
                 "store": False, "include": ["reasoning.encrypted_content"]}
+        if system:
+            body["instructions"] = system
         if tools:
             body["tools"] = [{"type": "function", "name": t["name"], "description": t["description"],
                               "parameters": t["input_schema"], "strict": False} for t in tools]
@@ -324,7 +324,8 @@ class OpenAICompatible:
         self.api_key = key_for(self.base_url, "api.openai.com", "OPENAI_API_KEY", api_key)
 
     def __call__(self, system, messages, tools) -> Reply:
-        body = {"model": self.model, "messages": [{"role": "system", "content": system}] + _to_openai(messages)}
+        prompt = [{"role": "system", "content": system}] if system else []
+        body = {"model": self.model, "messages": prompt + _to_openai(messages)}
         if self.max_tokens:
             body["max_tokens"] = self.max_tokens
         if tools:
