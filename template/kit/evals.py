@@ -12,7 +12,11 @@ Checks: contains, excludes and contains_any (case-insensitive, and curly quotes 
 ones; use contains_any where models word the same behaviour differently), called, not_called,
 pending, writes, writes_exclude (text no write's result may contain, e.g. a refund amount that
 must never be issued), runs (how many times each tool's function ran: {"refund": 1}), and unseen: text that must never reach the model (a card number the
-user pasted, say).
+user pasted, say), however it is escaped.
+A run that ends waiting for approval has no answer, so contains fails and excludes passes; the
+approval prompt is what the person sees then, and approval_excludes lists text it must not contain
+(it may rightly show data the user can read, so that they can refuse to send it).
+Every case runs at least once: trials (or --k) below 1 is an error, never a pass.
 A case passes only if every one of its k trials passes (pass^k): agents fail
 intermittently, and a gate that accepts "usually" ships "sometimes broken".
 
@@ -40,6 +44,21 @@ def plain(text: str) -> str:
     return text.translate(QUOTES).casefold()
 
 
+def strings(value):
+    """Every string inside a message structure, as the model received it (not JSON-escaped)."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            yield from strings(k)
+            yield from strings(v)
+    elif isinstance(value, (list, tuple)):
+        for v in value:
+            yield from strings(v)
+    elif value is not None and not isinstance(value, bool):
+        yield str(value)
+
+
 def trial(build, case: dict) -> tuple[bool, list[str]]:
     agent = build()
     user = User(case["user"]["id"], frozenset(case["user"].get("roles", [])))
@@ -54,6 +73,7 @@ def trial(build, case: dict) -> tuple[bool, list[str]]:
         return False, [f"model call failed: {str(e)[:200]}"]
 
     final = "" if isinstance(out, Pending) else out
+    shown = plain(str(out)) if isinstance(out, Pending) else ""  # the approval prompt a person sees
     called = [c["name"] for m in session.messages if m["role"] == "assistant" for c in m["calls"]]
     exp, fails = case["expect"], []
     answer = plain(final)
@@ -63,6 +83,9 @@ def trial(build, case: dict) -> tuple[bool, list[str]]:
     for s in exp.get("excludes", []):
         if plain(s) in answer:
             fails.append(f"answer contains {s!r}")
+    for s in exp.get("approval_excludes", []):
+        if plain(s) in shown:
+            fails.append(f"the approval prompt contains {s!r}")
     if "contains_any" in exp and not any(plain(s) in answer for s in exp["contains_any"]):
         fails.append(f"answer has none of {exp['contains_any']!r}")
     for name in exp.get("called", []):
@@ -82,9 +105,9 @@ def trial(build, case: dict) -> tuple[bool, list[str]]:
     for s in exp.get("writes_exclude", []):
         if any(plain(s) in plain(str(v)) for v in session.ledger.values()):
             fails.append(f"a write contains {s!r}")
-    sent = json.dumps(session.messages, ensure_ascii=False)
+    sent = [session.system, *strings(session.tools), *strings(session.messages)]
     for s in exp.get("unseen", []):
-        if s in sent:
+        if any(s in text for text in sent):
             fails.append(f"the model saw {s!r}")
     return not fails, fails
 
@@ -95,6 +118,10 @@ def run(build, cases: list[dict], k: int = 1, gates: dict = GATES) -> tuple[bool
         raise ValueError(f"unknown suite(s) {sorted(unknown)}; use {sorted(gates)}")
     if not cases:
         return False, []
+    for case in cases:  # zero trials would pass everything: all([]) is True
+        n = case.get("trials", k)
+        if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+            raise ValueError(f"case {case.get('id')!r}: trials must be a whole number of at least 1, not {n!r}")
     rows = []
     for case in cases:
         results = [trial(build, case) for _ in range(case.get("trials", k))]
@@ -118,6 +145,11 @@ def main(argv=None) -> int:
     ap.add_argument("--effort", help="reasoning effort for --model, where the model supports it")
     ap.add_argument("--max-tokens", type=int, help="cap on each answer for --model, reasoning included")
     args = ap.parse_args(argv)
+    if args.k < 1:
+        ap.error("--k must be at least 1")
+    for stream in (sys.stdout, sys.stderr):  # a cp949 or ASCII console must not lose the report
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
 
     module, _, fn = args.agent.partition(":")
     if not fn:
@@ -130,7 +162,7 @@ def main(argv=None) -> int:
         except (ValueError, APIError) as e:
             ap.error(str(e))
         build = lambda: plain(model=model_from(spec, effort, limit), model_id=spec.split(":", 1)[1].split("@")[0])
-    with open(args.cases, encoding="utf-8") as f:
+    with open(args.cases, encoding="utf-8-sig") as f:  # PowerShell 5.1 and Windows editors write a BOM
         cases = json.load(f)
     try:
         ok, rows = run(build, cases, k=args.k)
@@ -138,7 +170,9 @@ def main(argv=None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
-    width = max(len(r["id"]) for r in rows)
+    if not rows:
+        print(f"no cases in {args.cases}")
+    width = max((len(r["id"]) for r in rows), default=0)
     for r in rows:
         mark = "pass" if r["passed"] else "FAIL"
         print(f"{mark}  {r['suite']:<10} {r['id']:<{width}}  {'; '.join(r['failures'])}")

@@ -120,7 +120,7 @@ def build(model=None, model_id: str = "stand-in", tracer: Tracer | None = None, 
     guard = Guard() if guarded else None
     toolbox = Toolbox(policy(), lockdown=guarded).add(*tools())
     system = load_prompt(HERE / "prompt.md")
-    release = bundle(system, model_id, [t.schema() for t in toolbox.tools.values()],
+    release = bundle(system, model_id, list(toolbox.tools.values()),
                      guard=guard.settings if guard else None, lockdown=toolbox.lockdown, limits=LIMITS)
     tracer = tracer or Tracer(release=release["version"])
     return Agent(model or StandIn(), system, toolbox, tracer, model_id=model_id, guard=guard)

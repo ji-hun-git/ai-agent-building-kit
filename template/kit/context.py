@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from .policy import Taint
 
 
-def dumps(obj) -> str:
-    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+def dumps(obj, default=None) -> str:
+    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=default)
 
 
 def fingerprint(system: str, tools: list[dict]) -> str:
@@ -68,5 +68,5 @@ class Session:
 
 
 def load_prompt(path) -> str:
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8-sig") as f:  # Windows editors and PowerShell 5.1 save a BOM
         return f.read().strip()
