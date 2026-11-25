@@ -105,9 +105,9 @@ class Agent:
                 call = queue.pop(0)
                 try:
                     self._execute(session, user, call)
-                except NeedsApproval as e:
-                    session.pending = {"call": call, "queue": queue}
-                    return Pending(call, e.reason)
+                except NeedsApproval as e:  # e.call is the call as screened: what the person sees is what runs
+                    session.pending = {"call": e.call, "queue": queue}
+                    return Pending(e.call, e.reason)
             if session.steps >= self.max_steps:  # counted across approvals, so resuming cannot loop
                 text = "I stopped because this took too many steps. Please narrow the request."
                 session.append({"role": "assistant", "content": text, "calls": []})
@@ -150,13 +150,19 @@ class Agent:
                     if labels:
                         span["guard.stored"] = labels
                         call = Call(call.id, call.name, args)
-                result = self.toolbox.execute(call, user, session, approved=approved)
+                verdicts = []
+
+                def screen(text: str) -> str:  # the whole result, before the toolbox cuts it to length
+                    verdicts.append(verdict := self.guard.data(text))
+                    return "This result was withheld by the content guard." if verdict.blocked else verdict.text
+
+                result = self.toolbox.execute(call, user, session, approved=approved,
+                                              screen=screen if self.guard else None)
                 span["tool.ran"] = result.ran
-                if self.guard:  # error messages too: a failing tool can echo what it read
-                    verdict = self.guard.data(result.content)
-                    span["guard.data"] = verdict.labels
-                    result = Result("This result was withheld by the content guard." if verdict.blocked
-                                    else verdict.text, result.is_error)
+                if self.guard:
+                    if not verdicts:  # error messages too: a failing tool can echo what it read
+                        result = Result(screen(result.content), result.is_error, result.ran)
+                    span["guard.data"] = verdicts[-1].labels
             span["tool.is_error"] = result.is_error
         session.append(_tool_msg(call, result.content, result.is_error))
 

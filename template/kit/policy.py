@@ -45,7 +45,10 @@ class Policy:
     def visible(self, user: "User", tool: str) -> bool:
         if tool not in self.rules:
             return False
-        return self.visibility.get(tool, self.rules[tool])(user, {})
+        try:
+            return bool(self.visibility.get(tool, self.rules[tool])(user, {}))
+        except Exception:  # fail closed, as check() does: a rule that needs arguments hides the tool
+            return False
 
     def check(self, user: User, tool: str, args: dict) -> tuple[bool, str]:
         rule = self.rules.get(tool)

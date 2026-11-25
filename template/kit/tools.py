@@ -115,7 +115,10 @@ class Toolbox:
     def key(self, session: Session, call: Call) -> str:
         return hashlib.sha256(f"{session.id}|{call.name}|{dumps(canonical(call.args))}".encode()).hexdigest()[:16]
 
-    def execute(self, call: Call, user: User, session: Session, approved: bool = False) -> Result:
+    def execute(self, call: Call, user: User, session: Session, approved: bool = False,
+                screen: Callable[[str], str] | None = None) -> Result:
+        """`screen` (the agent passes its guard) sees the whole result before it is cut to max_chars,
+        so a cut can never split a secret or a card number past the rule that would have caught it."""
         tool = self.tools.get(call.name)
         if tool is None:
             return Result(f"Unknown tool '{call.name}'. Available: {', '.join(sorted(self.tools))}.", True)
@@ -146,7 +149,14 @@ class Toolbox:
         except Exception as e:  # the model gets a sentence, the trace gets the type
             return Result(f"{tool.name} failed: {e}. Check the arguments and try once more.", True)
 
-        text = out if isinstance(out, str) else dumps(out)
+        if tool.kind != "read":  # recorded before anything below can fail: a write never runs twice
+            session.ledger[key] = "(done)"
+        try:  # a database row brings Decimal and datetime values
+            text = out if isinstance(out, str) else dumps(out, default=str)
+        except (TypeError, ValueError):
+            text = repr(out)
+        if screen:
+            text = screen(text)
         if len(text) > self.max_chars:
             text = text[: self.max_chars] + f"\n[truncated at {self.max_chars} characters; narrow the request]"
         if tool.kind != "read":

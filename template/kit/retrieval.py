@@ -94,7 +94,8 @@ def chunk(doc: Doc, max_words: int = 120) -> list[Chunk]:
     for para in re.split(r"\n\s*\n", doc.text.strip()):
         if para.lstrip().startswith("#"):
             flush()
-            heading = para.lstrip("# ").splitlines()[0].strip()
+            first = para.lstrip("# ").splitlines()  # a bare "#" has no heading text: keep the last one
+            heading = (first[0].strip() if first else "") or heading
             rest = "\n".join(para.splitlines()[1:]).strip()
             if rest:
                 buf.append(rest)
@@ -117,26 +118,42 @@ class Index:
         self.tokens = [tokenize(c.body) for c in self.chunks]
         self.df = Counter(t for toks in self.tokens for t in set(toks))
         self.avgdl = sum(map(len, self.tokens)) / max(len(self.tokens), 1)
+        self._stats: dict[tuple, tuple] = {}
         self.k1, self.b, self.embed = k1, b, embed
         self.vectors = [embed(c.body) for c in self.chunks] if embed else None
         # Permissions are part of the version: making a document public is a behaviour change.
         self.version = hashlib.sha256("".join(f"{sorted(c.acl)}|{c.body}" for c in self.chunks).encode()).hexdigest()[:12]
 
-    def _bm25(self, query: list[str], i: int) -> float:
-        tf, n, dl = Counter(self.tokens[i]), len(self.chunks), len(self.tokens[i])
+    def stats(self, visible: list[int]) -> tuple[Counter, float, int]:
+        """Document frequencies and average length over the chunks this user may read. Statistics
+        over every chunk would let restricted documents reorder what others find, and so reveal
+        which words they contain."""
+        key = tuple(visible)
+        if key not in self._stats:
+            if len(self._stats) >= 64:  # one entry per distinct set of roles; bounded
+                self._stats.clear()
+            df = Counter(t for i in visible for t in set(self.tokens[i]))
+            avgdl = sum(len(self.tokens[i]) for i in visible) / max(len(visible), 1)
+            self._stats[key] = (df, avgdl, len(visible))
+        return self._stats[key]
+
+    def _bm25(self, query: list[str], i: int, stats: tuple[Counter, float, int] | None = None) -> float:
+        df, avgdl, n = stats or (self.df, self.avgdl, len(self.chunks))
+        tf, dl = Counter(self.tokens[i]), len(self.tokens[i])
         score = 0.0
         for t in query:
             if t not in tf:
                 continue
-            idf = math.log(1 + (n - self.df[t] + 0.5) / (self.df[t] + 0.5))
-            score += idf * tf[t] * (self.k1 + 1) / (tf[t] + self.k1 * (1 - self.b + self.b * dl / self.avgdl))
+            idf = math.log(1 + (n - df[t] + 0.5) / (df[t] + 0.5))
+            score += idf * tf[t] * (self.k1 + 1) / (tf[t] + self.k1 * (1 - self.b + self.b * dl / avgdl))
         return score
 
     def search(self, query: str, user: User, k: int = 3, min_coverage: float = 0.5) -> list[tuple[Chunk, float]]:
         visible = [i for i, c in enumerate(self.chunks) if PUBLIC in c.acl or user.roles & c.acl]
         words = terms(query)
         q = list(dict.fromkeys(form for forms in words for form in forms))
-        scores = {i: self._bm25(q, i) for i in visible}
+        stats = self.stats(visible)
+        scores = {i: self._bm25(q, i, stats) for i in visible}
         lexical = sorted((i for i in visible if scores[i] > 0), key=lambda i: -scores[i])
         if self.embed:  # the dense leg can vouch for a chunk that shares no word with the query
             qv = getattr(self.embed, "query", self.embed)(query)

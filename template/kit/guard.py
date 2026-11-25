@@ -41,6 +41,7 @@ decides what any instruction can actually do (permissions, the trifecta rule,
 approvals, lockdown).
 """
 
+import html
 import json
 import os
 import re
@@ -143,19 +144,21 @@ SECRETS = {name: re.compile(p, re.ASCII) for name, p in SECRETS.items()}
 
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
+# The body of a key whose END line is missing (cut off, or chunked away): whole lines of base64 or
+# "Name: value" headers, up to the first line that is anything else.
+PEM_BODY = re.compile(r"(?:\r?\n[ \t]{0,8}(?:[A-Za-z0-9+/=]{1,200}|[A-Za-z][A-Za-z0-9-]{0,40}:[^\n]{0,200})"
+                      r"[ \t]{0,8}(?=\r?\n|$))*")
 
 
 def redact_keys(text: str) -> tuple[str, int]:
-    """Private key blocks (PEM), found header first and closed within 6,000 characters."""
+    """Private key blocks (PEM), from the header to the END line within 6,000 characters, or, when
+    there is no END (a result cut at its length limit), through the base64 lines that follow."""
     out, i, n = [], 0, 0
     while begin := PEM_BEGIN.search(text, i):
         end = PEM_END.search(text, begin.end(), begin.end() + 6000)
-        if not end:
-            out.append(text[i:begin.end()])
-            i = begin.end()
-            continue
+        stop = end.end() if end else PEM_BODY.match(text, begin.end()).end()
         out.append(text[i:begin.start()] + "[REDACTED:private_key]")
-        i, n = end.end(), n + 1
+        i, n = stop, n + 1
     out.append(text[i:])
     return "".join(out), n
 
@@ -168,14 +171,34 @@ def luhn_card(digits: str) -> bool:
 
 
 def card(number: str) -> bool:
-    """A card number, or a card written in groups and run into more groups, such as a CVV or an
-    expiry ("4111 1111 1111 1111 123"): any run of whole groups that is a card counts."""
-    groups = [g for g in re.split(r"[ -]", number) if g]
-    return any(luhn_card("".join(groups[i:j])) for i in range(len(groups)) for j in range(i + 1, len(groups) + 1))
+    """A card number, or a card written in groups and run into more groups before or after it, such
+    as a reference number, a CVV or an expiry ("ref 1234 4111 1111 1111 1111 123"): any run of whole
+    groups that is a card counts. Dots separate card groups of four ("4111.1111.1111.1111") but not
+    the short groups of an IP address or a version number."""
+    parts = re.split(r"([ .-])", number)
+    groups, seps = parts[0::2], parts[1::2]
+    for i in range(len(groups)):
+        size = 0
+        for j in range(i, len(groups)):
+            size += len(groups[j])
+            if size > 19:
+                break
+            if size >= 15 and not ("." in seps[i:j] and any(len(g) < 4 for g in groups[i:j + 1])) \
+                    and luhn_card("".join(groups[i:j + 1])):
+                return True
+    return False
+
+
+# Matching sees full-width forms (a Korean or Japanese IME types ４１１１ and ｇｈｐ＿) and no-break
+# or figure spaces as their ASCII equivalents. One character for one, so a match maps straight
+# back onto the original text.
+FOLD = {c: c - 0xFEE0 for c in range(0xFF01, 0xFF5F)}
+FOLD.update({0x3000: 0x20, 0x00A0: 0x20, 0x2007: 0x20, 0x2009: 0x20, 0x202F: 0x20, 0x2010: 0x2D, 0x2011: 0x2D,
+             0x2012: 0x2D, 0x2013: 0x2D, 0x2212: 0x2D})
 
 
 PII = {
-    "card": (r"(?<!\d)(?:\d[ -]?){14,18}\d(?!\d)", card),
+    "card": (r"(?<!\d)\d(?:[ .-]?\d){14,59}(?!\d)", card),
     # 주민등록번호 and 외국인등록번호 (7th digit 5-8). No checksum: numbers issued since October 2020
     # end in random digits, so a failed check digit must never clear a match.
     "rrn": (r"(?<!\d)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])-?[1-8]\d{6}(?!\d)", None),
@@ -189,10 +212,24 @@ PII = {name: (re.compile(p, re.ASCII), check) for name, (p, check) in PII.items(
 # and reference-style), media tags, and any URL anywhere else, including protocol-relative ones,
 # bare www. hosts and script schemes.
 IMAGE = re.compile(r"!\[([^\]]{0,500})\]\(\s*<?([^)\s>]{0,2000})>?[^)]{0,500}\)")
-IMAGE_REF = re.compile(r"!\[[^\]]{0,500}\]\[([^\]]{1,100})\]")
+# Full ![alt][label], collapsed ![label][] and shortcut ![label] references all fetch the definition.
+IMAGE_REF = re.compile(r"!\[([^\]]{0,500})\](?:\[([^\]]{0,100})\])?")
 REF_DEF = re.compile(r"(?m)^[ \t]{0,3}\[([^\]]{1,100})\]:[ \t]*<?([^\s>]{1,2000})>?")
 MEDIA = re.compile(r"<(?:img|source|video|audio|iframe|embed|object|picture)\b[^>]{0,2000}>", re.I)
 MEDIA_URL = re.compile(r"""\b(?:src|srcset|data|poster)\s*=\s*["']?([^"'>]{1,2000})""", re.I)
+# Any other tag that links or submits somewhere (<a href>, <form action>, <link>, <area>, SVG xlink).
+HTML_TAG = re.compile(r"<[a-z][a-z0-9-]{0,30}\b[^>]{0,2000}>", re.I)
+TAG_URL = re.compile(r"""(?<![\w-])(?:href|src|srcset|action|formaction|data|poster|background|cite|xlink:href)"""
+                     r"""\s*=\s*(?:"([^"]{0,2000})"|'([^']{0,2000})'|([^\s"'>]{1,2000}))""", re.I)
+# What a renderer does to a URL before it fetches it: decodes character references, drops tabs and
+# newlines anywhere and control characters or spaces at either end (WHATWG URL), and in markdown
+# unescapes backslash-escaped punctuation.
+C0 = "".join(map(chr, range(0x21)))
+MD_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+
+
+def label(text: str) -> str:
+    return " ".join(text.split()).casefold()
 LINK = re.compile(r"(?<!!)\[([^\]]{1,500})\]\(\s*<?([^)\s>]{1,2000})>?[^)]{0,500}\)")
 URL = re.compile(r"(?:\b(?:https?|ftp|wss?):)?//[^\s<>\"'()\[\]{}\\]{1,2000}|\bwww\.[^\s<>\"'()\[\]{}\\]{1,2000}"
                  r"|\b(?:javascript|vbscript):[^\s<>\"']{1,2000}", re.I)
@@ -248,9 +285,13 @@ class Guard:
                 verdict = self.stored(value)
                 labels.update(verdict.labels)
                 return verdict.text
-            if isinstance(value, dict):
-                return {k: clean(v) for k, v in value.items()}
-            if isinstance(value, list):
+            if isinstance(value, (int, float)) and not isinstance(value, bool):  # a card sent as a number
+                verdict = self.stored(str(value))
+                labels.update(verdict.labels)
+                return verdict.text if verdict.findings else value
+            if isinstance(value, dict):  # keys are stored too
+                return {clean(k) if isinstance(k, str) else k: clean(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple)):
                 return [clean(v) for v in value]
             return value
         return clean(args), sorted(labels)
@@ -264,7 +305,7 @@ class Guard:
         # Egress refuses instead of editing: a person approved this message, not a redacted one.
         edit = "block" if stage == "egress" else None
 
-        def sub(pattern, rule, action, repl, check=None):
+        def sub(pattern, rule, action, repl, check=None, fold=False):
             nonlocal text
 
             def one(m):
@@ -272,7 +313,17 @@ class Guard:
                     return m.group(0)
                 found.append(Finding(rule, edit or action))
                 return repl(m) if callable(repl) else repl
-            text = pattern.sub(one, text)
+            if not fold:
+                text = pattern.sub(one, text)
+                return
+            folded, out, last = text.translate(FOLD), [], 0  # match the folded text, edit the original
+            for m in pattern.finditer(folded):
+                if check and not check(m):
+                    continue
+                found.append(Finding(rule, edit or action))
+                out += [text[last:m.start()], repl(m) if callable(repl) else repl]
+                last = m.end()
+            text = "".join(out) + text[last:]
 
         sub(TAGS, "hidden.tags", "strip", "")
         sub(INVISIBLE, "hidden.invisible", "strip", "")
@@ -285,15 +336,18 @@ class Guard:
         text, n = redact_keys(text)
         found += [Finding("secret.private_key", edit or "redact")] * n
         for name, pattern in SECRETS.items():
-            sub(pattern, f"secret.{name}", "redact", f"[REDACTED:{name}]" + ("@" if name == "url_password" else ""))
+            sub(pattern, f"secret.{name}", "redact", f"[REDACTED:{name}]" + ("@" if name == "url_password" else ""),
+                fold=True)
         for name, (pattern, check) in self.pii.items():
-            sub(pattern, f"pii.{name}", "redact", f"[REDACTED:{name}]", check and (lambda m, c=check: c(m.group(0))))
+            sub(pattern, f"pii.{name}", "redact", f"[REDACTED:{name}]", check and (lambda m, c=check: c(m.group(0))),
+                fold=True)
         if stage in ("output", "egress", "stored"):
-            images = {label.lower() for label in IMAGE_REF.findall(text)}
+            images = {label(m.group(2) or m.group(1)) for m in IMAGE_REF.finditer(text)}
             sub(REF_DEF, "exfil.link", "strip", lambda m: f"[{m.group(1)}]: [link removed]",
-                lambda m: not self._safe(m.group(2), image=m.group(1).lower() in images))
+                lambda m: not self._safe(m.group(2), image=label(m.group(1)) in images))
             sub(IMAGE, "exfil.image", "strip", "[image removed]", lambda m: not self._safe(m.group(2), image=True))
             sub(MEDIA, "exfil.image", "strip", "[image removed]", lambda m: not self._safe_media(m.group(0)))
+            sub(HTML_TAG, "exfil.link", "strip", "[link removed]", lambda m: not self._safe_tag(m.group(0)))
             sub(LINK, "exfil.link", "strip", lambda m: f"{m.group(1)} [link removed]",
                 lambda m: not self._safe(m.group(2)))
             sub(URL, "exfil.link", "strip", "[link removed]", lambda m: not self._safe(m.group(0)))
@@ -305,13 +359,19 @@ class Guard:
 
     def _safe(self, url: str, image: bool = False) -> bool:
         """Relative links stay. Absolute ones need https, no user name, and a listed host (or a
-        subdomain of one); images also need no query string, since that is where data rides out.
-        Backslashes count as slashes, as they do in browsers."""
-        url = url.strip().replace("\\", "/")
+        subdomain of one); images also need no query string, relative ones included, since that is
+        where data rides out. The URL is judged as a renderer will read it: character references
+        decoded, tabs and newlines dropped, and both with and without markdown backslash escapes,
+        since backslashes count as slashes in browsers."""
+        url = re.sub(r"[\t\n\r]", "", html.unescape(url)).strip(C0)
+        return all(self._safe_one(u, image) for u in {url, MD_ESCAPE.sub(r"\1", url)})
+
+    def _safe_one(self, url: str, image: bool) -> bool:
+        url = url.replace("\\", "/")
         if url.lower().startswith("www."):
             url = "https://" + url
         if not re.match(r"(?i)^(?:[a-z][a-z0-9+.-]*:|//)", url):
-            return True
+            return not (image and "?" in url)
         parts = urllib.parse.urlsplit("https:" + url if url.startswith("//") else url)
         if parts.scheme.lower() != "https" or "@" in parts.netloc or (image and parts.query):
             return False
@@ -319,8 +379,12 @@ class Guard:
         return any(host == h or host.endswith("." + h) for h in self.hosts)
 
     def _safe_media(self, tag: str) -> bool:
-        urls = [u for value in MEDIA_URL.findall(tag) for u in re.split(r"[\s,]+", value) if u and not u[0].isdigit()]
+        values = [re.sub(r"[\t\n\r]", "", html.unescape(v)) for v in MEDIA_URL.findall(tag)]
+        urls = [u for value in values for u in re.split(r"[\s,]+", value) if u and not u[0].isdigit()]
         return all(self._safe(u, image=True) for u in urls)
+
+    def _safe_tag(self, tag: str) -> bool:
+        return all(self._safe(next(v for v in m.groups() if v is not None)) for m in TAG_URL.finditer(tag))
 
 
 # ---------------------------------------------------------------- classifiers

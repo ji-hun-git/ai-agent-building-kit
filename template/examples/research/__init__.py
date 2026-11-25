@@ -46,7 +46,7 @@ def build(model=None, model_id: str = "stand-in", tracer: Tracer | None = None, 
              private=notes.private),  # whatever a researcher can read, the lead now holds
         Tool("save_brief", "Save the finished brief.", {"title": {"type": "string"}, "text": {"type": "string"}},
              fn=save_brief, kind="write", approval=False, required=("title", "text")))
-    release = bundle(lead_prompt, model_id, [t.schema() for t in toolbox.tools.values()], index.version,
+    release = bundle(lead_prompt, model_id, list(toolbox.tools.values()), index.version,
                      researcher=[researcher_prompt, notes.schema()], guard=guard.settings if guard else None,
                      lockdown=guarded)
     tracer = tracer or Tracer(release=release["version"])
