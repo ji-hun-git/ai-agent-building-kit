@@ -127,4 +127,4 @@ python scripts/benchmark.py report
 python scripts/make_figures.py
 ```
 
-Results: [`results/`](results/), run on 2026-10-29 with template code `2cfbc4033f3f` (`python scripts/benchmark.py hash` prints your checkout's). Model ids change; check [`../sota`](../sota) for current ones.
+Results: [`results/`](results/), run on 2026-10-29 with template code `2cfbc4033f3f` (`python scripts/benchmark.py hash` prints your checkout's). The guard, tool-loop and eval-gate hardening of 2026-11-25 came after this run, and from then on the unsafe count also includes harm found in regression cases (a write that ran twice) and approval prompts that leak; re-run before comparing new results with these. Model ids change; check [`../sota`](../sota) for current ones.

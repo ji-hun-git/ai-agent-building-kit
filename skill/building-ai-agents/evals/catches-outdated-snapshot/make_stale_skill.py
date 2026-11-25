@@ -9,6 +9,7 @@ Usage: python make_stale_skill.py <skill_dir> <out_dir>
 """
 
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -56,6 +57,7 @@ def main(skill_dir: str, out_dir: str) -> None:
 
     snap_path = dst / "references" / "snapshot.json"
     snap = json.loads(snap_path.read_text(encoding="utf-8"))
+    real_checked = snap.get("checked")
     snap["checked"] = STALE_DATE
     for item in snap["items"]:
         old = OLD_VERSIONS.get(f"{item['source']}:{item['key']}")
@@ -63,10 +65,21 @@ def main(skill_dir: str, out_dir: str) -> None:
             item["version"], item["released"] = old, ""
     snap_path.write_text(json.dumps(snap, indent=2) + "\n", encoding="utf-8")
 
-    # Text files claim the old verification date and the previous MCP revision as current.
-    for md in [dst / "SKILL.md", *sorted((dst / "references").glob("*.md"))]:
+    # Text files claim the old verification date and the previous MCP revision as current. Every date the
+    # real skill gives as its verification date is replaced (SKILL.md and the references may differ by a day),
+    # so the stale copy is consistent and a run must notice staleness by checking, not by spotting a mismatch.
+    mds = [dst / "SKILL.md", *sorted((dst / "references").glob("*.md"))]
+    claimed = {real_checked}
+    for md in mds:
+        claimed |= set(re.findall(r"(?:verified|Snapshot \(|queried|checked)\s*\**(\d{4}-\d\d-\d\d)", md.read_text(encoding="utf-8")))
+    current_mcp = next((i["version"] for i in json.loads((src / "references" / "snapshot.json").read_text(encoding="utf-8"))["items"]
+                        if i["source"] == "spec"), None)
+    for md in mds:
         text = md.read_text(encoding="utf-8")
-        text = text.replace("2026-10-27", STALE_DATE).replace("2026-07-28", OLD_MCP_REVISION)
+        for date in sorted(claimed - {None, ""}):
+            text = text.replace(date, STALE_DATE)
+        if current_mcp and current_mcp != OLD_MCP_REVISION:
+            text = text.replace(current_mcp, OLD_MCP_REVISION)
         md.write_text(text, encoding="utf-8")
     print(f"stale skill written to {dst} (snapshot {STALE_DATE}, MCP {OLD_MCP_REVISION})")
 

@@ -110,29 +110,38 @@ def port(tool: Tool, toolbox: Toolbox, guard: Guard) -> agents.FunctionTool:
         """The SDK asks this before the call runs. A call that will be refused, or that already ran in
         this conversation, never asks a person."""
         run = ctx.context
-        if refusal(run.user, args) or toolbox.key(run, Call(call_id, tool.name, args)) in run.ledger:
+        stored = guard.stored_args(args)[0] if tool.kind != "read" else args  # the key execute() records under
+        if refusal(run.user, args) or toolbox.key(run, Call(call_id, tool.name, stored)) in run.ledger:
             return False
         return bool(needs_person(tool, run.taint, toolbox.lockdown))
 
-    def execute(ctx: agents.tool_context.ToolContext, args: dict) -> str:
+    def screen(text: str) -> str:
+        verdict = guard.data(text)
+        return "This result was withheld by the content guard." if verdict.blocked else verdict.text
+
+    def execute(ctx: agents.tool_context.ToolContext, args: dict) -> tuple[str, bool]:
+        """(text, screened): the toolbox screens a result whole, before it cuts it to length."""
         run = ctx.context
         refused = refusal(run.user, args)  # the user's own permissions on every call, and the egress guard
         if refused:
-            return refused
+            return refused, False
         # The kit's own order from here: ledger, trifecta, lockdown, approval, then the function, once.
         # The run context is the session: it has the id, the taint and the ledger.
         approved = bool(ctx.is_tool_approved(tool.name, ctx.tool_call_id))
         if tool.kind != "read":  # what a write stores, people read later
             args = guard.stored_args(args)[0]
+        seen = []
         try:
-            return toolbox.execute(Call(ctx.tool_call_id, tool.name, args), run.user, run, approved=approved).content
+            result = toolbox.execute(Call(ctx.tool_call_id, tool.name, args), run.user, run, approved=approved,
+                                     screen=lambda text: seen.append(1) or screen(text))
+            return result.content, bool(seen)
         except NeedsApproval as e:  # needs_approval ran before an earlier call of the same reply tainted the run
-            return f"Not done: {e.reason}. Call {tool.name} again so the user is asked."
+            return f"Not done: {e.reason}. Call {tool.name} again so the user is asked.", False
 
     async def invoke(ctx: agents.tool_context.ToolContext, arguments: str) -> str:
-        """Every result, errors included, passes Guard.data before the model reads it."""
-        verdict = guard.data(execute(ctx, _args(arguments)))
-        return "This result was withheld by the content guard." if verdict.blocked else verdict.text
+        """Every result, errors included, passes Guard.data before the model reads it, exactly once."""
+        text, screened = execute(ctx, _args(arguments))
+        return text if screened else screen(text)
 
     return agents.FunctionTool(
         name=tool.name, description=tool.description, params_json_schema=tool.schema()["input_schema"],

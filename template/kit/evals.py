@@ -29,6 +29,7 @@ With --model, the build function is called as build(model=..., model_id=...).
 import argparse
 import importlib
 import json
+import os
 import sys
 
 from .agent import Pending, model_from
@@ -154,6 +155,8 @@ def main(argv=None) -> int:
     module, _, fn = args.agent.partition(":")
     if not fn:
         ap.error("--agent must be module:function, e.g. examples.hr:build")
+    if os.getcwd() not in sys.path and "" not in sys.path:  # the kit-evals launcher, unlike python -m, does not
+        sys.path.insert(0, os.getcwd())                     # put the working directory on the path
     build = getattr(importlib.import_module(module), fn)
     if args.model:
         spec, effort, limit, plain = args.model, args.effort, args.max_tokens, build

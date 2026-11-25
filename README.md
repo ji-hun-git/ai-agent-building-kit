@@ -126,7 +126,7 @@ Full results, every miss and how to reproduce them: [benchmarks/](benchmarks/).
 
 ## The ten layers
 
-The numbers in the figure above are the rows of this table.
+The numbers in the architecture figure at the top of this page are the rows of this table.
 
 | # | Layer | The failure it closes | Guide | Template | Ladder |
 | --- | --- | --- | --- | --- | --- |

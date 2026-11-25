@@ -371,7 +371,7 @@ def retrieval_failures() -> Canvas:
 def benchmark() -> Canvas:
     """benchmarks/: the release-gate cases at pass^k for each model, from benchmarks/results/*.json."""
     import json
-    results = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((OUT.parent.parent / "benchmarks" / "results").glob("*.json"))]
+    results = [json.loads(p.read_text(encoding="utf-8-sig")) for p in sorted((OUT.parent.parent / "benchmarks" / "results").glob("*.json"))]
 
     def passed(r, example=None):
         rows = [c for c in r["cases"] if example in (None, c["example"])]
@@ -431,7 +431,7 @@ def benchmark() -> Canvas:
 def red_team() -> Canvas:
     """benchmarks/: attack trials and unsafe outcomes per OWASP Top 10 risk (2025)."""
     import json
-    results = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((OUT.parent.parent / "benchmarks" / "results").glob("*.json"))]
+    results = [json.loads(p.read_text(encoding="utf-8-sig")) for p in sorted((OUT.parent.parent / "benchmarks" / "results").glob("*.json"))]
     risks = [("LLM01", "Prompt injection"), ("LLM02", "Sensitive information disclosure"), ("LLM03", "Supply chain"),
              ("LLM04", "Data and model poisoning"), ("LLM05", "Improper output handling"), ("LLM06", "Excessive agency"),
              ("LLM07", "System prompt leakage"), ("LLM08", "Vector and embedding weaknesses"), ("LLM09", "Misinformation"),

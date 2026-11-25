@@ -9,6 +9,8 @@ and context: unhashed safety flags, restricted documents shifting public ranking
 """
 
 import contextlib
+import importlib.util
+import unittest.mock
 import datetime
 import decimal
 import io
@@ -16,6 +18,8 @@ import json
 import os
 import tempfile
 import unittest
+
+from pathlib import Path
 
 from kit import (Agent, Call, Doc, Guard, Index, Pending, Policy, Reply, Scripted, Session, Tool, Toolbox, User,
                  anyone, bundle, evals, load_prompt)
@@ -273,3 +277,75 @@ class TestPolicyAndContext(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReviewTwo(unittest.TestCase):
+    """Second review (2026-11-25): the example, the eval CLI, the benchmark and the freshness check."""
+
+    def test_refunds_are_whole_cents_so_tiny_amounts_cannot_slip_past_the_cap(self):
+        from examples import support
+        refund = {t.name: t for t in support.tools()}["refund"].fn
+        agent = User("a", frozenset({"support"}))
+        with self.assertRaises(ValueError):
+            refund(user=agent, ticket_id="T-1", amount=88.996)
+        refund(user=agent, ticket_id="T-1", amount=88.99)
+        with self.assertRaises(ValueError):
+            refund(user=agent, ticket_id="T-1", amount=0.004)
+        refund(user=agent, ticket_id="T-1", amount=0.01)  # 89.00 in all
+        with self.assertRaises(ValueError):
+            refund(user=agent, ticket_id="T-1", amount=0.01)
+
+    def test_the_installed_launcher_finds_a_package_in_the_working_directory(self):
+        import sys
+        with tempfile.TemporaryDirectory() as d:
+            pkg = os.path.join(d, "mypkg_review2")
+            os.mkdir(pkg)
+            with open(os.path.join(pkg, "__init__.py"), "w", encoding="utf-8") as f:
+                f.write("from tests.test_hardening import echo_build_default as build\n")
+            with open(os.path.join(d, "cases.json"), "w", encoding="utf-8") as f:
+                json.dump([case(contains=["ok"])], f)
+            here, path = os.getcwd(), list(sys.path)
+            try:
+                sys.path[:] = [p for p in sys.path if p not in ("", here, d)] + [here]  # as a console script sees it
+                os.chdir(d)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(evals.main(["cases.json", "--agent", "mypkg_review2:build"]), 0)
+            finally:
+                os.chdir(here)
+                sys.path[:] = path
+                sys.modules.pop("mypkg_review2", None)
+
+    def test_benchmark_counts_every_unsafe_outcome(self):
+        spec = importlib.util.spec_from_file_location("benchmark", Path(__file__).resolve().parents[2] / "scripts" / "benchmark.py")
+        bench = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bench)
+        self.assertTrue(bench.unsafe("refund ran 2 times, expected 1"))
+        self.assertTrue(bench.unsafe("the approval prompt contains 'p9'"))
+        self.assertFalse(bench.unsafe("answer lacks 'policy'"))
+        src = (Path(__file__).resolve().parents[2] / "scripts" / "benchmark.py").read_text(encoding="utf-8")
+        self.assertNotIn('case["suite"] == "safety" and any(unsafe', src)  # regression suites count too
+
+    def test_freshness_exit_codes(self):
+        path = Path(__file__).resolve().parents[2] / "skill" / "building-ai-agents" / "scripts" / "check_freshness.py"
+        spec = importlib.util.spec_from_file_location("check_freshness", path)
+        cf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cf)
+        rows = lambda *versions: {"checked": "2026-11-25", "items": [  # noqa: E731
+            {"source": "pypi", "key": f"p{i}", "label": f"P{i}", "version": v, "released": "", **({} if v else {"error": "offline"})}
+            for i, v in enumerate(versions)]}
+        snap = {"checked": "2026-10-28", "items": [{"source": "pypi", "key": "p0", "version": "1.0"},
+                                                    {"source": "pypi", "key": "p1", "version": "1.0"}]}
+        with tempfile.TemporaryDirectory() as d:
+            sp = os.path.join(d, "snap.json")
+            with open(sp, "w", encoding="utf-8-sig") as f:  # a BOM is fine
+                json.dump(snap, f)
+            for result, argv, code in [(rows(None, None), [], 2), (rows("1.0", "1.0"), ["--strict"], 0),
+                                       (rows("1.1", "1.0"), [], 0), (rows("1.1", "1.0"), ["--strict"], 1),
+                                       (rows("1.0", None), ["--strict"], 1)]:
+                out = io.StringIO()
+                with unittest.mock.patch.object(cf, "collect", lambda with_models, r=result: json.loads(json.dumps(r))), \
+                        unittest.mock.patch("sys.argv", ["x", "--no-models", "--snapshot", sp, *argv]), \
+                        contextlib.redirect_stdout(out):
+                    self.assertEqual(cf.main(), code, (result["items"], argv))
+                if None in [i["version"] for i in result["items"]]:
+                    self.assertIn("could not be checked", out.getvalue())

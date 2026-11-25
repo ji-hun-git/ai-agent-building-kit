@@ -35,8 +35,12 @@ jobs:
           for api in openai responses anthropic; do
             spec="$api:$MODEL@http://127.0.0.1:11434/v1"
             echo "### $spec" >> "$GITHUB_STEP_SUMMARY"
-            python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model "$spec" --k 1 --max-tokens 4096 | tee out.txt || true
+            set +e -o pipefail
+            python -m kit.evals examples/hr/cases.json --agent examples.hr:build --model "$spec" --k 1 --max-tokens 4096 2>&1 | tee out.txt
+            code=$?
+            set -e
             { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-            if grep -q "model call failed" out.txt; then failed=1; fi
+            # 0 gate passed, 1 gate failed (the model's answers: reported, not fatal); anything else is a crash
+            if [ "$code" -gt 1 ] || grep -q "model call failed" out.txt; then failed=1; fi
           done
           exit $failed

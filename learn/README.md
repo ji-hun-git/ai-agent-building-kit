@@ -42,7 +42,7 @@ python -m kit.evals examples/hr/cases.json --agent examples.hr:build --k 3
 
 **Read** [the ontology](../guide/ontology.md): the eight failures in the order a company meets them, and the architecture they force. Then the README's [ten layers](../README.md#the-ten-layers).
 
-**Try** For each failure (the agent calls itself ChatGPT, invents policy, shows an intern the CEO's pay, follows a planted instruction, runs up the bill, cannot be debugged, regresses after a prompt edit), find the file in [`template/kit`](../template/kit) that closes it.
+**Try** For each failure (the agent calls itself ChatGPT, invents policy, can answer but cannot act, shows an intern the CEO's pay, follows a planted instruction, runs up the bill, cannot be debugged, regresses after a prompt edit), find the file in [`template/kit`](../template/kit) that closes it.
 
 **Done when** you can name the control for every failure without looking.
 

@@ -246,8 +246,13 @@ def to_markdown(result, snapshot_date):
         lines.append(f"**Advisories for {row['spec']}:** {len(row['advisories'])} known (OSV)")
         lines += [f"- {a['id']} {' '.join(a['aliases'])}: {a['summary']}" for a in row["advisories"]]
     changed = [r for r in result["items"] if str(r.get("status", "")).startswith("changed")]
+    unreachable = [r for r in result["items"] if r.get("status") == "unreachable"]
     lines += ["", f"{len(changed)} component(s) changed since the snapshot. "
               "Read their changelogs before relying on the skill's defaults for them."]
+    if unreachable:  # "0 changed" must never mean "could not check"
+        lines += [f"{len(unreachable)} of {len(result['items'])} component(s) could not be checked "
+                  f"({', '.join(r['label'] for r in unreachable[:5])}{' ...' if len(unreachable) > 5 else ''}); "
+                  "their status is unknown, not unchanged."]
     return "\n".join(lines)
 
 
@@ -258,6 +263,8 @@ def main():
     ap.add_argument("--no-models", action="store_true", help="skip vendor model listing")
     ap.add_argument("--snapshot", default=str(here / "references" / "snapshot.json"))
     ap.add_argument("--write-snapshot", metavar="PATH", help="save this check as the new snapshot")
+    ap.add_argument("--strict", action="store_true",
+                    help="exit 1 when anything changed or could not be checked (exit 2 always means nothing could)")
     ap.add_argument("--audit", nargs="+", metavar="SPEC",
                     help="check pinned versions for advisories: name==ver (PyPI) or npm:name@ver")
     args = ap.parse_args()
@@ -266,7 +273,7 @@ def main():
     if args.audit:
         result["audit"] = audit(args.audit)
     snap_path = Path(args.snapshot)
-    snapshot = json.loads(snap_path.read_text(encoding="utf-8")) if snap_path.exists() else {}
+    snapshot = json.loads(snap_path.read_text(encoding="utf-8-sig")) if snap_path.exists() else {}
     compare(result, snapshot)
 
     if args.write_snapshot:
@@ -279,6 +286,11 @@ def main():
         print(json.dumps(result, indent=2))
     else:
         print(to_markdown(result, snapshot.get("checked")))
+    statuses = [r.get("status") for r in result["items"]]
+    if statuses and all(s == "unreachable" for s in statuses):
+        return 2  # no network, or every registry down: the check did not happen
+    if args.strict and any(s == "unreachable" or str(s).startswith("changed") for s in statuses):
+        return 1
     return 0
 
 
