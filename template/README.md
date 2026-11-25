@@ -109,7 +109,7 @@ For production, the guide's Step 1 says to build on a vendor harness. This code 
 | Guard on prompts, data, messages, stored text and answers (`Guard`) | before the query, inside each tool (`Guard.stored_args` on what a write stores), and on the final text | input and output guardrails, and inside each tool | around the model call and the tool call |
 | Run-once writes (the ledger) | a database table keyed like `Toolbox.key` | the same, with `RunState.to_json()` for the run itself | the same |
 | Traces (`Tracer`) | the SDK's OpenTelemetry traces, plus spans for guards and approvals | `add_trace_processor()` into your pipeline | OpenTelemetry GenAI spans |
-| The gate (`kit.evals`) | unchanged: point `build()` at the new agent | unchanged | unchanged |
+| The gate (`kit.evals`) | not directly: `evals.trial` drives the kit's `Agent` (`run`, `resume`, the session ledger, the tracer), so run the same cases through a small adapter or the port's own tests | the same | the same |
 
 ## What it leaves out, on purpose
 

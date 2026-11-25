@@ -251,6 +251,24 @@ class TestApprovalsAndLedger(unittest.TestCase):
         self.assertTrue(g.call("request_leave", self.LEAVE)["is_error"])
         self.assertFalse(g.hr.session.ledger)
 
+    def test_a_done_write_the_guard_redacted_is_not_asked_again(self):
+        """The ledger keys a write by the arguments as stored (redacted); decide() must look it up the same way."""
+        from kit import Guard, Tool
+        g = Gates(INTERN)
+        g.hr.toolbox.add(Tool("note", "writes a note", {"text": {"type": "string"}}, kind="write",
+                              fn=lambda user, text: "noted"))
+        g.hr.toolbox.policy.allow("note", anyone)
+        raw = {"text": "see [x](https://evil.example/?q=1)"}
+        g.hr.session.ledger[g.hr.toolbox.key(g.hr.session, Call("", "note", Guard().stored_args(raw)[0]))] = "noted"
+        self.assertEqual(g.hr.decide("note", raw), ("allow", "already done in this session"))
+
+    def test_a_long_result_is_screened_before_it_is_cut(self):
+        from kit import Tool
+        g = Gates(INTERN)
+        g.hr.toolbox.add(Tool("dump", "a file", {}, fn=lambda user: "x" * 3976 + " card 4111 1111 1111 1111 end"))
+        g.hr.toolbox.policy.allow("dump", anyone)
+        self.assertNotIn("4111 1111 1111 11", g.hr.run("dump", {}).content)
+
     def test_approved_write_runs_once_and_the_approval_is_used_up(self):
         g = Gates(INTERN, approve=lambda pending: True)
         self.assertIsInstance(g.permit("request_leave", self.LEAVE), PermissionResultAllow)

@@ -109,7 +109,7 @@ class Conversation:
             return "deny", f"Denied: {why}. Tell the user you cannot do this."
         if blocked := self.egress(tool, args):
             return "deny", blocked
-        if tool.kind != "read" and self._key(tool.name, args) in self.session.ledger:
+        if tool.kind != "read" and self._key(tool.name, self.stored(tool, args)) in self.session.ledger:
             return "allow", "already done in this session"
         taint = self.session.taint
         if taint.blocks(tool.outbound):
@@ -120,6 +120,10 @@ class Conversation:
         if tool.needs_approval:
             return "ask", f"{tool.name} is {'an' if tool.kind[0] in 'aeiou' else 'a'} {tool.kind} action"
         return "allow", ""
+
+    def stored(self, tool: Tool, args: dict) -> dict:
+        """A write's arguments as the guard stores them: the form the run-once ledger is keyed on."""
+        return self.guard.stored_args(args)[0] if self.guard and tool.kind != "read" else args
 
     def egress(self, tool: Tool, args: dict) -> str:
         """Why the egress guard stops this outbound call, or "" if it does not."""
@@ -161,16 +165,21 @@ class Conversation:
         tool = self.toolbox.tools.get(name)
         if tool and (blocked := self.egress(tool, args)):  # held here too, if the hook was bypassed
             return Result(blocked, True)
-        if self.guard and tool and tool.kind != "read":  # what a write stores, people read later
-            call = Call("", name, self.guard.stored_args(args)[0])
+        if tool:  # what a write stores, people read later
+            call = Call("", name, self.stored(tool, args))
+        screened = []
+
+        def screen(text: str) -> str:  # the whole result, before the toolbox cuts it to length
+            screened.append(verdict := self.guard.data(text))
+            return "This result was withheld by the content guard." if verdict.blocked else verdict.text
+
         try:
-            result = self.toolbox.execute(call, self.user, self.session, approved=approved)
+            result = self.toolbox.execute(call, self.user, self.session, approved=approved,
+                                          screen=screen if self.guard else None)
         except NeedsApproval as e:  # the gates were bypassed (an allow rule, bypassPermissions): fail closed
             result = Result(f"Not done: {e.reason}, and no person approved this call.", True)
-        if self.guard:
-            verdict = self.guard.data(result.content)
-            result = Result("This result was withheld by the content guard." if verdict.blocked
-                            else verdict.text, result.is_error)
+        if self.guard and not screened:  # error messages too: a failing tool can echo what it read
+            result = Result(screen(result.content), result.is_error, result.ran)
         return result
 
     def _key(self, name: str, args: dict) -> str:

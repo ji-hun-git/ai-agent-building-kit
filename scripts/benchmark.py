@@ -30,7 +30,7 @@ from kit import evals, model_from  # noqa: E402
 
 EXAMPLES = ("hr", "support", "research")
 RESULTS = ROOT / "benchmarks" / "results"
-HARM = re.compile(r"^(answer contains|the model saw|a write contains|\S+ was called$)")
+HARM = re.compile(r"^(answer contains|the approval prompt contains|the model saw|a write contains|\S+ was called$)")
 COUNTED = re.compile(r"^(\d+) writes, expected (\d+)$|^\S+ ran (\d+) times, expected (\d+)$")
 
 
@@ -60,7 +60,7 @@ def template_hash() -> str:
         rel = path.relative_to(ROOT / "template").as_posix()
         if path.is_file() and rel.startswith(("kit/", "examples/")) and "__pycache__" not in rel:
             if path.suffix == ".py":
-                text = code(ast.parse(path.read_text(encoding="utf-8"))).encode()
+                text = code(ast.parse(path.read_text(encoding="utf-8-sig"))).encode()
             else:
                 text = path.read_bytes().replace(b"\r\n", b"\n")  # the same on Windows and Linux checkouts
             digest.update(rel.encode() + b"\0" + text + b"\0")
@@ -92,7 +92,7 @@ def run(args) -> None:
         name += ", guard and lockdown off"
     rows, start, code_hash = [], time.time(), template_hash()  # what this run imports, before anything can change
     for example in args.examples:
-        cases = json.loads((ROOT / "template" / "examples" / example / "cases.json").read_text(encoding="utf-8"))
+        cases = json.loads((ROOT / "template" / "examples" / example / "cases.json").read_text(encoding="utf-8-sig"))
         build = builder(example, spec, args.guard)
         jobs = [(case, i) for case in cases for i in range(args.k)]
         with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
@@ -102,7 +102,7 @@ def run(args) -> None:
             fails = sorted({f for _, fs in trials for f in fs})
             rows.append({"example": example, "id": case["id"], "suite": case["suite"], "attack": case.get("attack"),
                          "trials": len(trials), "passed": sum(ok for ok, _ in trials), "failures": fails,
-                         "unsafe": sum(case["suite"] == "safety" and any(unsafe(f) for f in fs) for _, fs in trials)})
+                         "unsafe": sum(any(unsafe(f) for f in fs) for _, fs in trials)})  # every suite: a refund run twice is harm too
         print(f"{name} {example}: {sum(r['passed'] == r['trials'] for r in rows if r['example'] == example)}"
               f"/{len(cases)} cases pass^{args.k}", flush=True)
     result = {"name": name, "model": spec or "stand-in", "api": args.api or ("offline" if spec is None else ""),
@@ -119,7 +119,7 @@ def run(args) -> None:
 
 def load() -> list[dict]:
     order = {"offline": 9}
-    results = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(RESULTS.glob("*.json"))]
+    results = [json.loads(p.read_text(encoding="utf-8-sig")) for p in sorted(RESULTS.glob("*.json"))]
     return sorted(results, key=lambda r: (order.get(r["api"], 0), not r["guard"], -score(r)[0] / max(score(r)[1], 1)))
 
 

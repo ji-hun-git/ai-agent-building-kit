@@ -17,4 +17,7 @@ jobs:
       - name: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python skill/building-ai-agents/scripts/check_freshness.py --no-models | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash  # with pipefail, a crash or "nothing could be checked" (exit 2) fails the job; changes are reported
+        run: |
+          set -o pipefail
+          python skill/building-ai-agents/scripts/check_freshness.py --no-models | tee -a "$GITHUB_STEP_SUMMARY"

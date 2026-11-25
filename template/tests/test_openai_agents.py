@@ -99,6 +99,21 @@ class TestRuleAdapters(unittest.IsolatedAsyncioTestCase):
         context.ledger[self.hr.toolbox.key(context, Call("c3", "request_leave", LEAVE))] = "filed"
         self.assertFalse(await asks(self.tools["request_leave"], context, LEAVE))  # done already, so never asks
 
+    async def test_a_done_write_the_guard_redacted_is_not_asked_again(self):
+        """The ledger keys a write by the arguments as stored (redacted); the approval check must use the same."""
+        tool = Tool("note", "writes a note", {"text": {"type": "string"}}, kind="write", fn=lambda user, text: "noted")
+        toolbox = Toolbox(Policy().allow("note", anyone)).add(tool)
+        note, context = port(tool, toolbox, Guard()), Context(INTERN)
+        raw = {"text": "see [x](https://evil.example/?q=1)"}
+        context.ledger[toolbox.key(context, Call("c1", "note", Guard().stored_args(raw)[0]))] = "noted"
+        self.assertFalse(await asks(note, context, raw))
+
+    async def test_a_long_result_is_screened_before_it_is_cut(self):
+        tool = Tool("dump", "a file", {}, fn=lambda user: "x" * 3976 + " card " + CARD + " end")
+        dump = port(tool, Toolbox(Policy().allow("dump", anyone)).add(tool), Guard())
+        out = await call(dump, Context(INTERN), {})
+        self.assertNotIn("4111 1111 1111 11", out)
+
     async def test_guard_data_runs_inside_every_tool(self):
         tool = Tool("echo", "echoes", {"text": {"type": "string"}}, fn=lambda user, text: text)
         echo = port(tool, Toolbox(Policy().allow("echo", anyone)).add(tool), Guard())

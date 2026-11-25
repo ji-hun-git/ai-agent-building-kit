@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-agent-building-kit"
-version = "2026.10.29"
+version = "2026.11.25"
 description = "A small, dependency-free harness for production AI agents: permissions, approvals, a guard, retrieval, traces, evals."
 readme = "README.md"
 requires-python = ">=3.10"
